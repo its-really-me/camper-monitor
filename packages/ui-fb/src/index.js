@@ -1,0 +1,111 @@
+'use strict'
+
+let createCanvas
+try {
+  createCanvas = require('canvas').createCanvas
+} catch {
+  console.error('[ui-fb] ERROR: "canvas" package not found.')
+  console.error('  Install system deps:  sudo apt install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev')
+  console.error('  Then:                 npm install')
+  process.exit(1)
+}
+
+const http              = require('http')
+const { Framebuffer, getScreenSize } = require('./framebuffer')
+const { render }        = require('./renderer')
+
+const { width: W, height: H } = getScreenSize()
+const canvas = createCanvas(W, H)
+const ctx    = canvas.getContext('2d')
+
+let state     = null
+let connected = false
+
+// Open framebuffer — gracefully degrade if not available (e.g. dev machine)
+let fb = null
+try {
+  fb = new Framebuffer('/dev/fb0')
+} catch (e) {
+  console.warn('[ui-fb] Cannot open /dev/fb0:', e.message)
+  console.warn('[ui-fb] Rendering without framebuffer output (dry run).')
+}
+
+function draw() {
+  render(ctx, W, H, state, connected)
+  if (fb) {
+    fb.write(canvas.toBuffer('raw'))   // raw = Cairo BGRA
+  }
+}
+
+// ── SSE client ───────────────────────────────────────────────────────────────
+
+function connectSSE(url) {
+  const req = http.get(url, res => {
+    if (res.statusCode !== 200) {
+      console.error(`[ui-fb] SSE returned ${res.statusCode} — retrying in 5 s…`)
+      res.resume()
+      setTimeout(() => connectSSE(url), 5000)
+      return
+    }
+
+    connected = true
+    draw()
+
+    let buf = ''
+    res.on('data', chunk => {
+      buf += chunk.toString()
+      const lines = buf.split('\n')
+      buf = lines.pop()          // keep incomplete last line
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            state = JSON.parse(line.slice(6))
+            draw()
+          } catch { /* ignore malformed frames */ }
+        }
+      }
+    })
+
+    res.on('end', () => {
+      connected = false
+      console.log('[ui-fb] SSE stream ended — reconnecting in 3 s…')
+      draw()
+      setTimeout(() => connectSSE(url), 3000)
+    })
+
+    res.on('error', err => {
+      connected = false
+      console.error('[ui-fb] SSE error:', err.message)
+      draw()
+    })
+  })
+
+  req.on('error', err => {
+    connected = false
+    console.warn(`[ui-fb] Cannot reach server (${err.message}) — retrying in 5 s…`)
+    draw()
+    setTimeout(() => connectSSE(url), 5000)
+  })
+
+  req.setTimeout(10000, () => {
+    req.destroy()
+    setTimeout(() => connectSSE(url), 5000)
+  })
+}
+
+// ── start ────────────────────────────────────────────────────────────────────
+
+const port = process.env.PORT ?? 3000
+const url  = `http://localhost:${port}/events`
+
+console.log(`[ui-fb] ${W}×${H} — connecting to ${url}`)
+draw()               // render "offline" frame immediately
+connectSSE(url)
+
+// Periodic refresh so the clock updates even when data is static
+setInterval(draw, 15_000)
+
+process.on('SIGINT', () => {
+  fb?.close()
+  process.exit(0)
+})

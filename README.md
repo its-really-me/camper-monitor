@@ -12,7 +12,7 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 - Status: Charging / Discharging / Idle
 - Temperature
 
-**Solar Charger (Victron SmartSolar 75/15 via VE.Direct)**
+**Solar Charger (Victron SmartSolar 75/15 via VE.Direct or Bluetooth)**
 - PV voltage, current, power
 - Battery-side current and voltage
 - Charge mode: Bulk / Absorption / Float / Off / …
@@ -24,7 +24,7 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 ## Local development (no hardware)
 
 ```sh
-git clone <repo> camper-monitor
+git clone https://github.com/its-really-me/camper-monitor.git
 cd camper-monitor
 npm install
 npm run dev
@@ -38,183 +38,157 @@ Open **http://localhost:5175** — mock data runs automatically, no devices need
 
 ## Raspberry Pi installation
 
-### Tested on
-- Raspberry Pi Zero 2 W (recommended)
-- Raspberry Pi OS Bookworm Lite 64-bit
-- Display: 1024×768 via HDMI
+### Hardware
+
+| Board | Browser | Notes |
+|---|---|---|
+| Pi Zero W | Epiphany | ARMv6 — Chromium requires NEON and will not run |
+| Pi Zero 2 W | Chromium | ARMv8 — drop-in upgrade, full NEON support |
+
+OS: Debian Trixie (or Raspberry Pi OS Bookworm)  
+Display: 1024×768 via HDMI
 
 ### 1 — Flash and first boot
 
-Flash Raspberry Pi OS Bookworm (64-bit, Lite) with Raspberry Pi Imager. In the imager settings:
-- Set hostname, SSH, and Wi-Fi before flashing so you can SSH in headlessly.
+Flash Raspberry Pi OS Bookworm (64-bit, Lite) or Debian Trixie with Raspberry Pi Imager. Enable SSH and Wi-Fi in the imager settings before writing so you can log in headlessly.
 
-### 2 — SSH in and update
+### 2 — SSH in
 
 ```sh
 ssh pi@<your-pi-ip>
-sudo apt update && sudo apt upgrade -y
 ```
 
-### 3 — Install Node.js 20
+### 3 — Clone and run the installer
 
 ```sh
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-node --version   # should print v20.x.x
+git clone https://github.com/its-really-me/camper-monitor.git /opt/camper-monitor
+sudo bash /opt/camper-monitor/scripts/install.sh
 ```
 
-### 4 — Install system dependencies
+The installer will:
+- Install Node.js 20 (via NodeSource)
+- Install Bluetooth, serial port, and X11 dependencies
+- Auto-detect your Pi model and install **Epiphany** (Pi Zero W) or **Chromium** (Pi Zero 2 W)
+- Run `npm install` and build the UI
+- Launch the **configuration wizard** (see below)
 
-**For Bluetooth (JBD BMS reader):**
-```sh
-sudo apt install -y bluetooth bluez libbluetooth-dev
-sudo systemctl enable bluetooth
-sudo systemctl start bluetooth
+> **Alternative — no clone needed:**
+> ```sh
+> curl -fsSL https://raw.githubusercontent.com/its-really-me/camper-monitor/main/scripts/install.sh | sudo bash
+> ```
+> The script clones the repo itself if it isn't already there.
 
-# Allow Node.js to use BLE without running as root
-sudo setcap cap_net_raw+eip $(which node)
-```
+### 4 — Configuration wizard
 
-**For VE.Direct serial (Victron solar reader):**
-```sh
-sudo apt install -y minicom   # optional, useful for testing the serial port
-# Add your user to the dialout group so Node.js can open /dev/ttyUSB0
-sudo usermod -aG dialout $USER
-newgrp dialout
-```
-
-**For the kiosk display:**
-```sh
-sudo apt install -y --no-install-recommends \
-  xserver-xorg x11-xserver-utils xinit openbox chromium-browser
-```
-
-### 5 — Clone and install
+The wizard runs automatically at the end of the installer. It can also be re-run at any time:
 
 ```sh
-git clone <repo> /opt/camper-monitor
-cd /opt/camper-monitor
-npm install
+sudo bash /opt/camper-monitor/scripts/configure.sh
 ```
 
-### 6 — Configure
+It will ask for:
+- Battery driver (`ble` / `mock`) and BLE MAC address
+- Solar driver (`vedirect` / `ble` / `mock`), serial port or BLE MAC + advertisement key
+- HTTP server port
 
-```sh
-cp .env.example .env
-nano .env          # remove the mock lines, set real drivers
-nano settings.yaml # set your BLE MAC addresses and serial port
-```
+It writes `settings.yaml`, `.env`, `~/.xinitrc` (with the correct browser for your hardware), and the two systemd service files, then enables them.
 
-**`settings.yaml` — key values to update:**
-
-```yaml
-readers:
-  battery:
-    driver: ble
-    macAddress: "AA:BB:CC:DD:EE:FF"   # your JBD BMS MAC (see §Finding MAC addresses)
-
-  solar:
-    driver: vedirect
-    port: /dev/ttyUSB0                # adjust if your adapter appears elsewhere
-```
-
-**`.env` — production (leave empty or remove mock lines):**
-```sh
-# no BATTERY_DRIVER / SOLAR_DRIVER overrides → reads from settings.yaml
-```
-
-### 7 — Build the UI
-
-```sh
-cd /opt/camper-monitor
-npm run build:ui
-```
-
-### 8 — systemd service
-
-Create `/etc/systemd/system/camper-monitor.service`:
-
-```ini
-[Unit]
-Description=Camper Monitor
-After=network.target bluetooth.target
-
-[Service]
-WorkingDirectory=/opt/camper-monitor
-ExecStart=/usr/bin/node packages/server/src/index.js
-Restart=always
-RestartSec=5
-User=pi
-EnvironmentFile=/opt/camper-monitor/.env
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-
-```sh
-sudo systemctl daemon-reload
-sudo systemctl enable camper-monitor
-sudo systemctl start camper-monitor
-sudo systemctl status camper-monitor   # should show "active (running)"
-```
-
-### 9 — Kiosk display (auto-start Chromium)
-
-Create `/home/pi/.xinitrc`:
-
-```sh
-#!/bin/sh
-xset s off
-xset -dpms
-xset s noblank
-openbox &
-sleep 2
-chromium-browser \
-  --kiosk \
-  --noerrdialogs \
-  --disable-infobars \
-  --no-first-run \
-  --app=http://localhost:3000
-```
-
-Create `/etc/systemd/system/kiosk.service`:
-
-```ini
-[Unit]
-Description=Chromium Kiosk
-After=camper-monitor.service graphical.target
-
-[Service]
-User=pi
-Environment=DISPLAY=:0
-ExecStart=/usr/bin/startx
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=graphical.target
-```
-
-```sh
-sudo systemctl enable kiosk
-sudo systemctl start kiosk
-```
-
-### 10 — Reboot and verify
+### 5 — Reboot and verify
 
 ```sh
 sudo reboot
 ```
 
-After reboot the display should show the dashboard automatically. If something is wrong:
+After reboot the dashboard should appear on the display automatically. If something is wrong:
 
 ```sh
 sudo journalctl -u camper-monitor -f   # server logs
 sudo journalctl -u kiosk -f            # display logs
+```
+
+---
+
+## Victron SmartSolar via Bluetooth
+
+The SmartSolar 75/15 broadcasts live data over BLE using encrypted advertisements (Victron *Instant Readout*). No USB cable is needed, but the available data is slightly reduced compared to VE.Direct — see the comparison table below.
+
+### Data available per transport
+
+| Field | VE.Direct (USB) | Bluetooth |
+|---|:---:|:---:|
+| PV voltage | ✅ | ❌ |
+| PV current (derived) | ✅ | ❌ |
+| PV power | ✅ | ✅ |
+| Battery current | ✅ | ✅ |
+| Battery voltage | ✅ | ✅ |
+| Charge mode | ✅ | ✅ |
+| Yield today | ✅ | ✅ |
+
+> PV voltage is not included in the BLE advertisement payload. If you need it, use VE.Direct.
+
+### Step 1 — Get the advertisement key
+
+The SmartSolar encrypts its BLE broadcasts with a per-device 128-bit key. Retrieve it from the **VictronConnect** app:
+
+1. Open VictronConnect and connect to your SmartSolar.
+2. Tap the device name at the top → **Product info**.
+3. Scroll down to **Advertisement key** — copy the 32-character hex string (e.g. `a1b2c3d4e5f6...`).
+
+> The key never changes unless you reset the device. Store it somewhere safe.
+
+### Step 2 — Find the MAC address
+
+On the Pi (or any Linux machine with BlueZ):
+
+```sh
+sudo bluetoothctl
+> scan on
+# The SmartSolar appears as "SmartSolar MPPT 75|15" or similar
+> scan off
+> quit
+```
+
+On macOS the Bluetooth address is shown as a UUID in `bluetoothctl` alternatives; use the VictronConnect device list to confirm.
+
+### Step 3 — Configure `settings.yaml`
+
+```yaml
+readers:
+  solar:
+    driver: ble
+    macAddress: "AA:BB:CC:DD:EE:FF"   # SmartSolar BLE MAC
+    advertisementKey: "a1b2c3d4e5f6778899aabbccddeeff00"  # 32-char hex from VictronConnect
+    pollInterval: 2000   # advertisements arrive ~every 1 s; this is the display refresh rate
+```
+
+### Step 4 — Enable Bluetooth on the Pi (if not already done)
+
+```sh
+sudo apt install -y bluetooth bluez
+sudo systemctl enable --now bluetooth
+sudo setcap cap_net_raw+eip $(which node)   # allow Node.js to scan BLE without root
+```
+
+### Switching between Bluetooth and VE.Direct
+
+Change the `driver` value in `settings.yaml` — no code changes needed:
+
+```yaml
+# Bluetooth (no cable, reduced data)
+solar:
+  driver: ble
+
+# VE.Direct USB cable (full data including PV voltage)
+solar:
+  driver: vedirect
+  port: /dev/ttyUSB0
+```
+
+Or override at runtime without editing the file:
+
+```sh
+SOLAR_DRIVER=ble npm start
+SOLAR_DRIVER=vedirect npm start
 ```
 
 ---
@@ -237,14 +211,40 @@ Copy the `AA:BB:CC:DD:EE:FF` address into `settings.yaml → readers.battery.mac
 
 ### Victron SmartSolar (BLE driver only)
 
-The BLE driver also needs the **advertisement key** from VictronConnect:
+See the [Victron SmartSolar via Bluetooth](#victron-smartsolar-via-bluetooth) section above for the full setup guide including how to retrieve the advertisement key and MAC address.
 
-1. Open VictronConnect on your phone
-2. Connect to the SmartSolar
-3. Tap the device name → **Product info** → **Advertisement key**
-4. Copy the 32-character hex key into `settings.yaml → readers.solar.advertisementKey`
+---
 
-> **Tip:** The VE.Direct driver (USB cable) gives more data (full PV voltage & current) and needs no key. Prefer it if you have a USB–VE.Direct cable.
+## Display: Pi Zero W vs Pi Zero 2 W
+
+| Board | Approach | Why |
+|---|---|---|
+| Pi Zero W (ARMv6) | **Framebuffer renderer** (`ui-fb`) | No browser — Chromium and Epiphany both require NEON (ARMv7+) |
+| Pi Zero 2 W (ARMv8) | **Chromium kiosk** | Full NEON support, browser works normally |
+
+The install script detects the architecture automatically and sets up the right path.
+
+### Pi Zero W — framebuffer renderer
+
+`packages/ui-fb` is a Node.js process that connects to the server's SSE stream and draws the dashboard directly to `/dev/fb0` using `node-canvas` (Cairo). No X11, no browser, no NEON required.
+
+The `canvas` npm package compiles from source on ARMv6. The install script installs the required Cairo libraries and warns you that compilation takes several minutes on Pi Zero W hardware.
+
+System dependencies installed automatically by `scripts/install.sh`:
+```sh
+sudo apt install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev \
+                   build-essential pkg-config fonts-dejavu-core
+```
+
+The `ui-fb` process runs as a systemd service:
+```sh
+sudo systemctl status ui-fb
+sudo journalctl -u ui-fb -f
+```
+
+### Pi Zero 2 W — Chromium kiosk
+
+Standard X11 + Chromium setup. The install script installs Chromium and writes `~/.xinitrc` and a `kiosk.service` automatically.
 
 ---
 

@@ -1,0 +1,9 @@
+{
+  "name": "@camper-monitor/ui-fb",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.js",
+  "optionalDependencies": {
+    "canvas": "^2.11.2"
+  }
+}
