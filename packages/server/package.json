@@ -1,0 +1,13 @@
+{
+  "name": "@camper-monitor/server",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.js",
+  "dependencies": {
+    "@camper-monitor/reader-battery": "*",
+    "@camper-monitor/reader-solar": "*",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0",
+    "js-yaml": "^4.1.0"
+  }
+}

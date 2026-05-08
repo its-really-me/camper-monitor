@@ -1,0 +1,17 @@
+readers:
+  battery:
+    driver: ble                       # 'ble' | 'mock'  — override with BATTERY_DRIVER env var
+    macAddress: "AA:BB:CC:DD:EE:FF"   # BLE MAC of your Eco-worthy JBD BMS
+    pollInterval: 5000                # ms
+
+  solar:
+    driver: vedirect                  # 'vedirect' | 'ble' | 'mock'  — override with SOLAR_DRIVER env var
+    # VE.Direct (driver: vedirect)
+    port: /dev/ttyUSB0
+    # Victron BLE (driver: ble)
+    macAddress: "11:22:33:44:55:66"
+    advertisementKey: ""              # 32-char hex from VictronConnect → device → info → advertisement key
+    pollInterval: 2000                # ms (mock / ble only — VE.Direct sends ~1 s naturally)
+
+server:
+  port: 3000

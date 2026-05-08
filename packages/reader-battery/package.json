@@ -1,0 +1,9 @@
+{
+  "name": "@camper-monitor/reader-battery",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.js",
+  "optionalDependencies": {
+    "@abandonware/noble": "^1.9.2"
+  }
+}
