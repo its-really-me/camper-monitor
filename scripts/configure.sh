@@ -237,11 +237,11 @@ else
         warn "ARMv6: compiling from source — this takes several minutes, please be patient..."
     fi
     cd "$INSTALL_DIR"
-    # Remove node_modules first to avoid ENOTEMPTY rename conflicts when npm
-    # tries to update transitive deps on top of an existing partial install.
+    # Remove all node_modules (root + nested) to avoid ENOTEMPTY rename
+    # conflicts when npm updates transitive deps on top of a partial install.
     # Pure-JS packages are already in /tmp/npm-cache so this is fast.
     info "Clearing node_modules for clean install..."
-    rm -rf node_modules
+    find "$INSTALL_DIR" -name node_modules -type d -prune -exec rm -rf {} +
     sudo -u "$REAL_USER" npm install \
         --workspace=packages/server \
         --workspace=packages/reader-battery \
