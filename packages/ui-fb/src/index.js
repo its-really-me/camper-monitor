@@ -1,5 +1,7 @@
 'use strict'
 
+const fs = require('fs')
+
 let createCanvas
 try {
   createCanvas = require('canvas').createCanvas
@@ -20,6 +22,7 @@ const ctx    = canvas.getContext('2d')
 
 let state     = null
 let connected = false
+let blanked   = false
 
 // Open framebuffer — gracefully degrade if not available (e.g. dev machine)
 let fb = null
@@ -30,7 +33,39 @@ try {
   console.warn('[ui-fb] Rendering without framebuffer output (dry run).')
 }
 
+// ── screen blanking ──────────────────────────────────────────────────────────
+
+const BLANK_TIMEOUT_MIN = parseInt(process.env.BLANK_TIMEOUT ?? '3', 10)
+const TOUCH_DEVICE      = process.env.TOUCH_DEVICE ?? '/dev/input/event0'
+const BLANK_MS          = BLANK_TIMEOUT_MIN * 60 * 1000
+
+function setBlank(on) {
+  try { fs.writeFileSync('/sys/class/graphics/fb0/blank', on ? '1' : '0') } catch {}
+  blanked = on
+}
+
+let blankTimer = null
+
+function resetIdleTimer() {
+  if (blanked) { setBlank(false); draw() }
+  clearTimeout(blankTimer)
+  if (BLANK_MS > 0) blankTimer = setTimeout(() => setBlank(true), BLANK_MS)
+}
+
+if (BLANK_MS > 0) {
+  try {
+    const touch = fs.createReadStream(TOUCH_DEVICE, { highWaterMark: 16 })
+    touch.on('data', resetIdleTimer)
+    touch.on('error', err => console.warn(`[ui-fb] Touch device (${TOUCH_DEVICE}): ${err.message}`))
+    console.log(`[ui-fb] Screen blanks after ${BLANK_TIMEOUT_MIN} min idle (${TOUCH_DEVICE})`)
+  } catch (err) {
+    console.warn('[ui-fb] Could not open touch device:', err.message)
+  }
+  resetIdleTimer()
+}
+
 function draw() {
+  if (blanked) return
   render(ctx, W, H, state, connected)
   if (fb) {
     fb.write(canvas.toBuffer('raw'))   // raw = Cairo BGRA

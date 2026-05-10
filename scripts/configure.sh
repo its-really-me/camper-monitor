@@ -142,6 +142,16 @@ success "camper-monitor.service"
 # ── display setup — split by architecture ────────────────────────────────────
 if [[ "$ARCH" == "armv6l" ]]; then
 
+    header "Display"
+
+    ask "Touch device path (default: /dev/input/event0):"
+    read -r _touch
+    TOUCH_DEVICE="${_touch:-/dev/input/event0}"
+
+    ask "Screen blank timeout in minutes — 0 to disable (default: 3):"
+    read -r _blank
+    BLANK_TIMEOUT="${_blank:-3}"
+
     # Pi Zero W: framebuffer renderer — no X11, no browser
     info "systemd: ui-fb.service  (framebuffer renderer)..."
     cat > /etc/systemd/system/ui-fb.service << EOF
@@ -156,6 +166,8 @@ Restart=always
 RestartSec=5
 User=$REAL_USER
 Environment=PORT=$SERVER_PORT
+Environment=TOUCH_DEVICE=$TOUCH_DEVICE
+Environment=BLANK_TIMEOUT=$BLANK_TIMEOUT
 StandardOutput=journal
 StandardError=journal
 
