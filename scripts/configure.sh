@@ -237,6 +237,17 @@ else
         warn "ARMv6: compiling from source — this takes several minutes, please be patient..."
     fi
     cd "$INSTALL_DIR"
+    # Remove node_modules first to avoid ENOTEMPTY rename conflicts when npm
+    # tries to update transitive deps on top of an existing partial install.
+    # Pure-JS packages are already in /tmp/npm-cache so this is fast.
+    info "Clearing node_modules for clean install..."
+    rm -rf node_modules
+    sudo -u "$REAL_USER" npm install \
+        --workspace=packages/server \
+        --workspace=packages/reader-battery \
+        --workspace=packages/reader-solar \
+        --workspace=packages/ui-fb \
+        --omit=optional --cache /tmp/npm-cache --loglevel=error
     if sudo -u "$REAL_USER" npm install --no-save "${NATIVE_PKGS[@]}" \
             --cache /tmp/npm-cache --loglevel=error; then
         success "Native modules ready"
