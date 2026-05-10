@@ -7,6 +7,7 @@ set -euo pipefail
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; BOLD='\033[1m'; NC='\033[0m'
 info()    { echo -e "${BLUE}▸${NC}  $*"; }
 success() { echo -e "${GREEN}✓${NC}  $*"; }
+warn()    { echo -e "${YELLOW}!${NC}  $*"; }
 ask()     { echo -e "${YELLOW}?${NC}  $*"; }
 header()  { echo; echo -e "${BOLD}$*${NC}"; echo "────────────────────────────────────────"; }
 
