@@ -243,6 +243,13 @@ The install script detects the architecture automatically and sets up the right 
 
 `packages/ui-fb` is a Node.js process that connects to the server's SSE stream and draws the dashboard directly to `/dev/fb0` using `node-canvas` (Cairo). No X11, no browser, no NEON required.
 
+> **Boot to CLI required.** If a desktop environment is installed, X11 will claim the framebuffer on boot and `ui-fb` won't be able to render. Set the Pi to boot to console:
+> ```sh
+> sudo raspi-config
+> ```
+> → System Options → Boot / Auto Login → **Console** (or Console Autologin).  
+> Reboot after changing this setting.
+
 The `canvas` npm package compiles from source on ARMv6. The install script installs the required Cairo libraries and warns you that compilation takes several minutes on Pi Zero W hardware.
 
 System dependencies installed automatically by `scripts/install.sh`:
