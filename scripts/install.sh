@@ -83,7 +83,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 if [[ -f "$REPO_ROOT/package.json" ]] && grep -q "camper-monitor" "$REPO_ROOT/package.json" 2>/dev/null; then
     info "Already cloned at $REPO_ROOT — copying to $INSTALL_DIR..."
     if [[ "$REPO_ROOT" != "$INSTALL_DIR" ]]; then
-        rsync -a --exclude=node_modules --exclude='.git' "$REPO_ROOT/" "$INSTALL_DIR/"
+        rsync -a --exclude=node_modules "$REPO_ROOT/" "$INSTALL_DIR/"
     fi
 elif [[ -d "$INSTALL_DIR/.git" ]]; then
     info "Updating existing installation at $INSTALL_DIR..."
