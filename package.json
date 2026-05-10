@@ -1,11 +1,16 @@
 {
   "name": "camper-monitor",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/server",
+    "packages/reader-battery",
+    "packages/reader-solar",
+    "packages/ui-fb"
+  ],
   "scripts": {
     "start": "node packages/server/src/index.js",
-    "dev": "concurrently -n server,ui -c cyan,magenta \"node packages/server/src/index.js\" \"npm run dev -w packages/ui\"",
-    "build:ui": "npm run build -w packages/ui"
+    "dev": "concurrently -n server,ui -c cyan,magenta \"node packages/server/src/index.js\" \"npm run dev --prefix packages/ui\"",
+    "build:ui": "npm install --prefix packages/ui && npm run build --prefix packages/ui"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
