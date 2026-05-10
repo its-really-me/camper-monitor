@@ -101,17 +101,22 @@ header "4 / 5  Node.js dependencies"
 
 cd "$INSTALL_DIR"
 
+# Install only the packages needed to run on Pi — skip the UI build workspace.
+# The built UI (packages/ui/dist/) is committed to the repo and served statically.
+WORKSPACES=(
+    --workspace=packages/server
+    --workspace=packages/reader-battery
+    --workspace=packages/reader-solar
+)
+
 if [[ "$ARCH" == "armv6l" ]]; then
     # canvas compiles from source on ARMv6 — this takes several minutes
     warn "Compiling node-canvas from source for ARMv6 — please be patient (~5–15 min)..."
+    WORKSPACES+=(--workspace=packages/ui-fb)
 fi
 
-sudo -u "$REAL_USER" npm install --cache /tmp/npm-cache
-
-if [[ "$ARCH" != "armv6l" ]]; then
-    info "Building web UI..."
-    sudo -u "$REAL_USER" npm run build:ui
-fi
+sudo -u "$REAL_USER" npm install "${WORKSPACES[@]}" \
+    --cache /tmp/npm-cache --loglevel=error
 
 success "Dependencies ready"
 

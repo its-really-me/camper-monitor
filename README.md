@@ -23,6 +23,19 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 
 ## Local development (no hardware)
 
+Requires **Node.js 20+**. Install it from [nodejs.org](https://nodejs.org) or via your package manager:
+
+```sh
+# macOS (Homebrew)
+brew install node
+
+# Debian / Ubuntu — apt splits Node and npm, install both explicitly:
+sudo apt-get update
+sudo apt-get install -y nodejs npm
+```
+
+Then clone and run:
+
 ```sh
 git clone https://github.com/its-really-me/camper-monitor.git
 cd camper-monitor
@@ -61,14 +74,16 @@ ssh pi@<your-pi-ip>
 ### 3 — Clone and run the installer
 
 ```sh
-git clone https://github.com/its-really-me/camper-monitor.git /opt/camper-monitor
-sudo bash /opt/camper-monitor/scripts/install.sh
+git clone https://github.com/its-really-me/camper-monitor.git ~/camper-monitor
+sudo bash ~/camper-monitor/scripts/install.sh
 ```
+
+The installer copies the repo to `/opt/camper-monitor` and works from there.
 
 The installer will:
 - Install Node.js 20 (via NodeSource)
 - Install Bluetooth, serial port, and X11 dependencies
-- Auto-detect your Pi model and install **Epiphany** (Pi Zero W) or **Chromium** (Pi Zero 2 W)
+- Auto-detect your Pi model and set up the framebuffer renderer (Pi Zero W) or **Chromium** kiosk (Pi Zero 2 W)
 - Run `npm install` and build the UI
 - Launch the **configuration wizard** (see below)
 
