@@ -96,27 +96,21 @@ fi
 chown -R "$REAL_USER:$REAL_USER" "$INSTALL_DIR"
 success "Repository ready at $INSTALL_DIR"
 
-# ── 5. npm install + build ──────────────────────────────────────────────────
+# ── 5. npm install ──────────────────────────────────────────────────────────
 header "4 / 5  Node.js dependencies"
 
 cd "$INSTALL_DIR"
 
-# Install only the packages needed to run on Pi — skip the UI build workspace.
-# The built UI (packages/ui/dist/) is committed to the repo and served statically.
-WORKSPACES=(
-    --workspace=packages/server
-    --workspace=packages/reader-battery
-    --workspace=packages/reader-solar
-)
-
-if [[ "$ARCH" == "armv6l" ]]; then
-    # canvas compiles from source on ARMv6 — this takes several minutes
-    warn "Compiling node-canvas from source for ARMv6 — please be patient (~5–15 min)..."
-    WORKSPACES+=(--workspace=packages/ui-fb)
-fi
-
-sudo -u "$REAL_USER" npm install "${WORKSPACES[@]}" \
-    --cache /tmp/npm-cache --loglevel=error
+# Install pure-JS workspace deps only. Native modules (noble, serialport, canvas)
+# are compiled in configure.sh once we know which drivers the user needs,
+# so only the required native packages are ever compiled.
+info "Installing JavaScript dependencies (skipping native modules)..."
+sudo -u "$REAL_USER" npm install \
+    --workspace=packages/server \
+    --workspace=packages/reader-battery \
+    --workspace=packages/reader-solar \
+    --workspace=packages/ui-fb \
+    --omit=optional --cache /tmp/npm-cache --loglevel=error
 
 success "Dependencies ready"
 

@@ -80,6 +80,31 @@ ask "HTTP port (default: 3000):"
 read -r SERVER_PORT
 SERVER_PORT="${SERVER_PORT:-3000}"
 
+# ── install native modules for chosen drivers ────────────────────────────────
+header "Native modules"
+
+NATIVE_PKGS=()
+[[ "$BATTERY_DRIVER" == "ble" ]]   && NATIVE_PKGS+=(@abandonware/noble)
+[[ "$SOLAR_DRIVER"   == "ble" ]]   && NATIVE_PKGS+=(@abandonware/noble)
+[[ "$SOLAR_DRIVER"   == "vedirect" ]] && NATIVE_PKGS+=(serialport)
+[[ "$ARCH"           == "armv6l" ]] && NATIVE_PKGS+=(canvas)
+
+# Deduplicate (noble may appear twice if both drivers use BLE)
+NATIVE_PKGS=($(printf '%s\n' "${NATIVE_PKGS[@]}" | sort -u))
+
+if [[ ${#NATIVE_PKGS[@]} -eq 0 ]]; then
+    info "All drivers are mock — no native modules needed."
+else
+    info "Installing native modules for selected drivers: ${NATIVE_PKGS[*]}"
+    if [[ "$ARCH" == "armv6l" ]]; then
+        warn "ARMv6: compiling from source — this takes several minutes, please be patient..."
+    fi
+    cd "$INSTALL_DIR"
+    sudo -u "$REAL_USER" npm install --no-save "${NATIVE_PKGS[@]}" \
+        --cache /tmp/npm-cache --loglevel=error
+    success "Native modules ready"
+fi
+
 # ── write settings.yaml ──────────────────────────────────────────────────────
 header "Writing config files"
 
