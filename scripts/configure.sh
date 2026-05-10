@@ -139,6 +139,30 @@ cat > "$INSTALL_DIR/.env" << 'EOF'
 EOF
 success ".env"
 
+# ── systemd: camper-monitor (shared) ─────────────────────────────────────────
+info "systemd: camper-monitor.service..."
+cat > /etc/systemd/system/camper-monitor.service << EOF
+[Unit]
+Description=Camper Monitor
+After=network.target bluetooth.target
+
+[Service]
+WorkingDirectory=$INSTALL_DIR
+ExecStart=/usr/bin/node packages/server/src/index.js
+Restart=always
+RestartSec=5
+User=$REAL_USER
+EnvironmentFile=$INSTALL_DIR/.env
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable camper-monitor
+success "camper-monitor.service"
+
 # ── display setup — split by architecture ────────────────────────────────────
 if [[ "$ARCH" == "armv6l" ]]; then
 
@@ -163,8 +187,8 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
-    systemctl enable camper-monitor ui-fb
-    success "Services enabled: camper-monitor, ui-fb"
+    systemctl enable ui-fb
+    success "ui-fb.service enabled"
 
 else
 
@@ -200,34 +224,10 @@ RestartSec=3
 WantedBy=graphical.target
 EOF
     systemctl daemon-reload
-    systemctl enable camper-monitor kiosk
-    success "Services enabled: camper-monitor, kiosk"
+    systemctl enable kiosk
+    success "kiosk.service enabled"
 
 fi
-
-# ── systemd: camper-monitor (shared) ─────────────────────────────────────────
-info "systemd: camper-monitor.service..."
-cat > /etc/systemd/system/camper-monitor.service << EOF
-[Unit]
-Description=Camper Monitor
-After=network.target bluetooth.target
-
-[Service]
-WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/node packages/server/src/index.js
-Restart=always
-RestartSec=5
-User=$REAL_USER
-EnvironmentFile=$INSTALL_DIR/.env
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable camper-monitor
-success "camper-monitor.service"
 
 # ── done ─────────────────────────────────────────────────────────────────────
 echo
