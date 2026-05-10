@@ -458,6 +458,8 @@ sudo journalctl -u kiosk -f          # Pi Zero 2 W only
 | # | Idea | Notes |
 |---|------|-------|
 | FE-1 | Cross-compile native modules on Mac | Build `canvas` and `@abandonware/noble` for `linux/arm/v6` inside a Docker + QEMU container on the dev machine. Extract the compiled `.node` files and `scp` them to the Pi, eliminating the 5–15 min on-device compilation. Worth implementing if reinstalls become frequent. Requires `docker buildx` with `linux/arm/v6` platform support. |
+| FE-2 | Custom Pi Zero 2 W OS image | Pre-bake Node.js, compiled native modules, the repo, and systemd services into a flashable `.img` for Pi Zero 2 W (ARMv8). User flashes with Pi Imager and it runs on first boot — no SSH or install script needed. Built with `pi-gen` or by scripting against a base Raspberry Pi OS image. Not worth doing for Pi Zero W (ARMv6 compilation is hard to pre-bake and the audience is smaller). |
+| FE-3 | Web-based first-run configuration UI | When `settings.yaml` is missing or incomplete, the Express server serves a setup page at `http://<pi-ip>/setup`. User enters MAC addresses, advertisement key, and driver choices from any browser on the local network. On Pi Zero 2 W, Chromium itself could open this page on first boot before switching to the dashboard. Server writes `settings.yaml` and restarts readers — no SSH or `configure.sh` needed. Pi Zero 2 W only (Pi Zero W has no browser). |
 
 ---
 
