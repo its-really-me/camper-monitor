@@ -10,9 +10,10 @@ const { createReader: createBatteryReader } = require('@camper-monitor/reader-ba
 const { createReader: createSolarReader }   = require('@camper-monitor/reader-solar')
 const { createApi }                         = require('./api')
 
+const SETTINGS_PATH = path.resolve(__dirname, '../../../settings.yaml')
+
 function loadConfig() {
-  const cfgPath = path.resolve(__dirname, '../../../settings.yaml')
-  const cfg = yaml.load(fs.readFileSync(cfgPath, 'utf8'))
+  const cfg = yaml.load(fs.readFileSync(SETTINGS_PATH, 'utf8'))
 
   // Environment variable overrides
   if (process.env.BATTERY_DRIVER) cfg.readers.battery.driver = process.env.BATTERY_DRIVER
@@ -23,7 +24,13 @@ function loadConfig() {
   return cfg
 }
 
-function main() {
+function startSetupServer() {
+  const port = parseInt(process.env.PORT ?? '3000', 10)
+  const { app } = createApi(null, { setupMode: true, settingsPath: SETTINGS_PATH })
+  app.listen(port, () => console.log(`Setup UI →  http://localhost:${port}/setup`))
+}
+
+function startNormalServer() {
   const cfg = loadConfig()
   console.log(`Battery driver : ${cfg.readers.battery.driver}`)
   console.log(`Solar driver   : ${cfg.readers.solar.driver}`)
@@ -82,4 +89,9 @@ function main() {
   })
 }
 
-main()
+if (fs.existsSync(SETTINGS_PATH)) {
+  startNormalServer()
+} else {
+  console.log('settings.yaml not found — starting setup server')
+  startSetupServer()
+}
