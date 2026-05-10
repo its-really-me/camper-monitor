@@ -453,7 +453,15 @@ sudo journalctl -u kiosk -f          # Pi Zero 2 W only
 
 ---
 
-## 14. Resolved Issues
+## 14. Future Enhancements
+
+| # | Idea | Notes |
+|---|------|-------|
+| FE-1 | Cross-compile native modules on Mac | Build `canvas` and `@abandonware/noble` for `linux/arm/v6` inside a Docker + QEMU container on the dev machine. Extract the compiled `.node` files and `scp` them to the Pi, eliminating the 5–15 min on-device compilation. Worth implementing if reinstalls become frequent. Requires `docker buildx` with `linux/arm/v6` platform support. |
+
+---
+
+## 15. Resolved Issues
 
 | # | Topic | Resolution |
 |---|-------|------------|
