@@ -217,44 +217,36 @@ EOF
     info "Adding $REAL_USER to tty group..."
     usermod -aG tty "$REAL_USER"
 
-    # Getty autologin on tty7 — more reliable than PAMName= in a system service
-    info "Getty autologin on tty7..."
-    mkdir -p /etc/systemd/system/getty@tty7.service.d
-    cat > /etc/systemd/system/getty@tty7.service.d/autologin.conf << EOF
+    info "systemd: kiosk.service  (Firefox ESR)..."
+    cat > /etc/systemd/system/kiosk.service << EOF
+[Unit]
+Description=Kiosk
+After=camper-monitor.service
+
 [Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin $REAL_USER --noclear %I \$TERM
+User=$REAL_USER
+TTYPath=/dev/tty7
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+Environment=DISPLAY=:0
+ExecStartPre=-/bin/rm -f /tmp/.X0-lock
+ExecStart=/usr/bin/startx -- vt7
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
-    systemctl enable getty@tty7.service
-    success "Getty autologin on tty7 enabled"
+    systemctl enable kiosk
+    success "kiosk.service enabled"
 
-    # Kiosk start script — runs from .bash_profile on tty7 login
-    info "$REAL_HOME/.kiosk-start.sh..."
-    cat > "$REAL_HOME/.kiosk-start.sh" << 'KIOSK'
-#!/bin/sh
-if [ "$(tty)" = "/dev/tty7" ]; then
-    sleep 10   # wait for camper-monitor to be ready
-    rm -f /tmp/.X0-lock
-    while true; do
-        startx -- vt7 2>&1 | logger -t kiosk
-        sleep 3
-    done
-fi
-KIOSK
-    chmod +x "$REAL_HOME/.kiosk-start.sh"
-    chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.kiosk-start.sh"
-    success ".kiosk-start.sh"
-
-    info "$REAL_HOME/.bash_profile..."
-    grep -qF '.kiosk-start.sh' "$REAL_HOME/.bash_profile" 2>/dev/null \
-        || echo '. "$HOME/.kiosk-start.sh"' >> "$REAL_HOME/.bash_profile"
-    chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.bash_profile"
-    success ".bash_profile"
-
-    # Disable legacy kiosk.service if present from a previous install
-    systemctl disable kiosk 2>/dev/null || true
-    rm -f /etc/systemd/system/kiosk.service
+    # Clean up getty autologin drop-in if present from a previous install
+    rm -f /etc/systemd/system/getty@tty7.service.d/autologin.conf
+    rmdir /etc/systemd/system/getty@tty7.service.d 2>/dev/null || true
     systemctl daemon-reload
 
 fi
@@ -323,12 +315,11 @@ if [[ "$ARCH" == "armv6l" ]]; then
     echo "  Logs       :  sudo journalctl -u camper-monitor -f"
     echo "                sudo journalctl -u ui-fb -f"
 else
-    echo "  Start now  :  sudo systemctl start camper-monitor"
-    echo "                (kiosk starts automatically on tty7 login)"
+    echo "  Start now  :  sudo systemctl start camper-monitor kiosk"
     echo "  Or reboot  :  sudo reboot"
     echo
     echo "  Logs       :  sudo journalctl -u camper-monitor -f"
-    echo "                journalctl -t kiosk -f   # Firefox ESR / X11"
+    echo "                sudo journalctl -u kiosk -f"
 fi
 
 echo "  Re-run     :  sudo bash $INSTALL_DIR/scripts/configure.sh"
