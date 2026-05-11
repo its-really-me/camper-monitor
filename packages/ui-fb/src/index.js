@@ -56,15 +56,20 @@ function resetIdleTimer() {
 }
 
 if (BLANK_MS > 0) {
-  try {
-    const fd    = fs.openSync(TOUCH_DEVICE, 'r')
-    const touch = new net.Socket({ fd, readable: true, writable: false })
-    touch.on('data', resetIdleTimer)
-    touch.on('error', err => console.warn(`[ui-fb] Touch device (${TOUCH_DEVICE}): ${err.message}`))
-    console.log(`[ui-fb] Screen blanks after ${BLANK_TIMEOUT_MIN} min idle (${TOUCH_DEVICE})`)
-  } catch (err) {
-    console.warn('[ui-fb] Could not open touch device:', err.message)
-  }
+  // fs.read on a char device blocks in libuv's thread pool until an event
+  // arrives — correct pattern for /dev/input/event* on Linux
+  const buf = Buffer.alloc(64)
+  const readTouch = fd => fs.read(fd, buf, 0, buf.length, null, (err, n) => {
+    if (!err && n > 0) { resetIdleTimer(); readTouch(fd) }
+  })
+  fs.open(TOUCH_DEVICE, 'r', (err, fd) => {
+    if (err) {
+      console.warn(`[ui-fb] Touch device (${TOUCH_DEVICE}): ${err.message}`)
+    } else {
+      console.log(`[ui-fb] Screen blanks after ${BLANK_TIMEOUT_MIN} min idle (${TOUCH_DEVICE})`)
+      readTouch(fd)
+    }
+  })
   resetIdleTimer()
 }
 
