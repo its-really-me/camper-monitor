@@ -53,13 +53,13 @@ Open **http://localhost:5175** — mock data runs automatically, no devices need
 
 ### Hardware
 
-| Board | Browser | Notes |
+| Board | Display path | Notes |
 |---|---|---|
-| Pi Zero W | Epiphany | ARMv6 — Chromium requires NEON and will not run |
-| Pi Zero 2 W | Chromium | ARMv8 — drop-in upgrade, full NEON support |
+| Pi Zero W | Framebuffer renderer (`ui-fb`) | ARMv6 — Chromium and Epiphany both require NEON (ARMv7+) and crash |
+| Pi Zero 2 W | Chromium kiosk | ARMv8 — full NEON support, browser works normally |
 
-OS: Debian Trixie (or Raspberry Pi OS Bookworm)  
-Display: 1024×768 via HDMI
+OS: Raspberry Pi OS Bookworm (or Debian Trixie)  
+Display: HDMI — tested at 1024×600; layout targets 1024×768 and scales to any resolution
 
 ### 1 — Flash and first boot
 
@@ -78,7 +78,7 @@ git clone https://github.com/its-really-me/camper-monitor.git ~/camper-monitor
 sudo bash ~/camper-monitor/scripts/install.sh
 ```
 
-The installer copies the repo to `/opt/camper-monitor` and works from there.
+The installer works in the cloned directory (does not copy to `/opt`).
 
 The installer will:
 - Install Node.js 20 (via NodeSource)
@@ -105,8 +105,11 @@ It will ask for:
 - Battery driver (`ble` / `mock`) and BLE MAC address
 - Solar driver (`vedirect` / `ble` / `mock`), serial port or BLE MAC + advertisement key
 - HTTP server port
+- **Pi Zero W only:** touch device path and screen-blank idle timeout (minutes)
 
-It writes `settings.yaml`, `.env`, `~/.xinitrc` (with the correct browser for your hardware), and the two systemd service files, then enables them.
+It writes `settings.yaml`, `.env`, systemd service files (and `~/.xinitrc` on Pi Zero 2 W), then enables them.
+
+> **Web-based setup alternative:** If `settings.yaml` is missing, the server automatically serves a setup form at `http://<pi-ip>:3000/setup`. Fill it in from any browser on the local network — no SSH required. The server writes the config and restarts into the dashboard automatically. The form is also accessible at `/setup` at any time to reconfigure.
 
 ### 5 — Reboot and verify
 
@@ -118,7 +121,8 @@ After reboot the dashboard should appear on the display automatically. If someth
 
 ```sh
 sudo journalctl -u camper-monitor -f   # server logs
-sudo journalctl -u kiosk -f            # display logs
+sudo journalctl -u ui-fb -f            # Pi Zero W — framebuffer renderer logs
+sudo journalctl -u kiosk -f            # Pi Zero 2 W — Chromium kiosk logs
 ```
 
 ---
@@ -250,7 +254,33 @@ The install script detects the architecture automatically and sets up the right 
 > → System Options → Boot / Auto Login → **Console** (or Console Autologin).  
 > Reboot after changing this setting.
 
-The `canvas` npm package compiles from source on ARMv6. The install script installs the required Cairo libraries and warns you that compilation takes several minutes on Pi Zero W hardware.
+The `canvas` npm package compiles from source on ARMv6 — this takes **5–15 minutes** on Pi Zero W hardware. The install script handles this automatically.
+
+### Screen blanking (Pi Zero W)
+
+`ui-fb` can blank the display after a period of inactivity and unblank it on touch. The `configure.sh` wizard asks for both values:
+
+| Env var | Default | Description |
+|---|---|---|
+| `TOUCH_DEVICE` | `/dev/input/event0` | Path to the touch input device |
+| `BLANK_TIMEOUT` | `3` | Idle minutes before blanking; `0` to disable |
+
+To find your touch device path:
+```sh
+cat /proc/bus/input/devices | grep -A5 -i touch
+# look for "event<N>" under the touchscreen entry
+```
+
+Blanking writes to `/sys/class/graphics/fb0/blank`, which requires root. `configure.sh` adds a targeted sudoers rule automatically:
+```
+camper ALL=(root) NOPASSWD: /usr/bin/tee /sys/class/graphics/fb0/blank
+```
+
+If you skip `configure.sh` and need to add this manually:
+```sh
+echo "camper ALL=(root) NOPASSWD: /usr/bin/tee /sys/class/graphics/fb0/blank" | sudo tee /etc/sudoers.d/camper-monitor-blank
+sudo chmod 440 /etc/sudoers.d/camper-monitor-blank
+```
 
 System dependencies installed automatically by `scripts/install.sh`:
 ```sh

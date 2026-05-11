@@ -1,8 +1,8 @@
 # Product Requirements Document — Camper Monitor
 
-**Version:** 1.1  
-**Date:** 2026-05-08  
-**Status:** Implemented
+**Version:** 1.2  
+**Date:** 2026-05-11  
+**Status:** Implemented (BLE end-to-end verification pending)
 
 ---
 
@@ -22,7 +22,7 @@ The system is also runnable on a developer's machine without any hardware (mock 
 | G2 | Show solar charger PV voltage, PV current, PV power, battery-side current, and charge mode |
 | G3 | Run on Raspberry Pi Zero (no Docker, installed via `npm install`) |
 | G4 | Run on a developer Mac/Linux with simulated data (`MOCK=true`) |
-| G5 | Display optimised for 1024×768 — Chromium kiosk on Pi Zero 2 W; framebuffer renderer on Pi Zero W |
+| G5 | Display optimised for 1024×768 — Chromium kiosk on Pi Zero 2 W; framebuffer renderer on Pi Zero W. Layout auto-scales; tested at 1024×600. |
 | G6 | Each hardware reader is an independently replaceable module |
 
 ## 3. Non-Goals
@@ -291,12 +291,14 @@ server:
 
 Environment variables override yaml values at runtime:
 
-| Env var | Overrides |
-|---------|-----------|
+| Env var | Overrides / purpose |
+|---------|---------------------|
 | `BATTERY_DRIVER` | `readers.battery.driver` |
 | `SOLAR_DRIVER` | `readers.solar.driver` |
 | `SOLAR_PORT` | `readers.solar.port` |
 | `PORT` | `server.port` |
+| `TOUCH_DEVICE` | `ui-fb` only — path to touch input device (default `/dev/input/event0`) |
+| `BLANK_TIMEOUT` | `ui-fb` only — idle minutes before display blanks; `0` to disable (default `3`) |
 
 ---
 
@@ -371,6 +373,14 @@ Pixel-accurate Cairo re-implementation of the React layout. Same colour constant
 
 Framebuffer colour depth: auto-detected from `/sys/class/graphics/fb0/bits_per_pixel`. 32bpp: BGRA written directly. 16bpp: Cairo BGRA converted to RGB565 before write.
 
+**Screen blanking:** after `BLANK_TIMEOUT` minutes of no touch events, `ui-fb` writes `1` to `/sys/class/graphics/fb0/blank` via `sudo tee` (requires a sudoers rule added by `configure.sh`). Any touch event resets the idle timer and unblanks. Touch is read via `fs.read` in a libuv thread-pool loop on the `/dev/input/event*` character device — this is the correct pattern; `fs.createReadStream` emits premature `end` on char devices and `net.Socket` rejects non-socket fds. `vcgencmd display_power` was evaluated but only controls HDMI output; DSI/DPI and some HDMI displays ignore it.
+
+**SSE connection:** `ui-fb` connects to `/events` via `http.get` with `req.setTimeout(0)` (no socket timeout). The server emits a `: heartbeat` comment every 8 seconds to keep the connection alive when sensor data is sparse. Without the heartbeat, a 10 s socket timeout caused a Live→Offline→Live flicker cycle visible in the header.
+
+**tty1 cursor:** The Linux terminal cursor on `tty1` bleeds through the framebuffer. Suppressed at startup with `fs.writeFileSync('/dev/tty1', '\x1b[?25l')`.
+
+**Boot requirement:** The Pi must boot to CLI (not desktop). If X11 starts, it claims `/dev/fb0` and `ui-fb` cannot render. Set via `raspi-config → System Options → Boot / Auto Login → Console`.
+
 ---
 
 ## 12. Development Workflow
@@ -405,8 +415,8 @@ Architecture is auto-detected by `uname -m` in the install/configure scripts.
 ### Install (one command)
 
 ```sh
-git clone https://github.com/its-really-me/camper-monitor.git /opt/camper-monitor
-sudo bash /opt/camper-monitor/scripts/install.sh
+git clone https://github.com/its-really-me/camper-monitor.git ~/camper-monitor
+sudo bash ~/camper-monitor/scripts/install.sh
 ```
 
 Or without cloning first:
@@ -415,10 +425,12 @@ Or without cloning first:
 curl -fsSL https://raw.githubusercontent.com/its-really-me/camper-monitor/main/scripts/install.sh | sudo bash
 ```
 
-`install.sh` will:
+`install.sh` works in the cloned directory (does not copy to `/opt`).
+
+It will:
 1. Install Node.js 20 via NodeSource
 2. Install BlueZ and set BLE capability (`setcap cap_net_raw+eip` on node binary)
-3. Add user to `dialout` (VE.Direct serial)
+3. Add user to `dialout` (VE.Direct serial) and `input` (touch device access)
 4. **Pi Zero W**: install Cairo system libs, add user to `video` group — canvas compiles from source (~5–15 min on ARMv6)
 5. **Pi Zero 2 W**: install X11 + Chromium, build React UI
 6. Run `configure.sh` (interactive wizard)
@@ -429,10 +441,11 @@ curl -fsSL https://raw.githubusercontent.com/its-really-me/camper-monitor/main/s
 sudo bash /opt/camper-monitor/scripts/configure.sh
 ```
 
-Prompts for battery driver + MAC, solar driver + port/MAC/key, HTTP port. Writes:
+Prompts for battery driver + MAC, solar driver + port/MAC/key, HTTP port. On Pi Zero W: also prompts for touch device path and screen-blank idle timeout. Writes:
 - `settings.yaml`
 - `.env`
-- systemd service files
+- systemd service files (`camper-monitor`, `ui-fb` or `kiosk`)
+- `/etc/sudoers.d/camper-monitor-blank` (Pi Zero W — grants `sudo tee` access to the framebuffer blank sysfs node)
 - `.xinitrc` (Pi Zero 2 W only)
 
 ### systemd services
@@ -459,7 +472,7 @@ sudo journalctl -u kiosk -f          # Pi Zero 2 W only
 |---|------|-------|
 | FE-1 | Cross-compile native modules on Mac | Build `canvas` and `@abandonware/noble` for `linux/arm/v6` inside a Docker + QEMU container on the dev machine. Extract the compiled `.node` files and `scp` them to the Pi, eliminating the 5–15 min on-device compilation. Worth implementing if reinstalls become frequent. Requires `docker buildx` with `linux/arm/v6` platform support. |
 | FE-2 | Custom Pi Zero 2 W OS image | Pre-bake Node.js, compiled native modules, the repo, and systemd services into a flashable `.img` for Pi Zero 2 W (ARMv8). User flashes with Pi Imager and it runs on first boot — no SSH or install script needed. Built with `pi-gen` or by scripting against a base Raspberry Pi OS image. Not worth doing for Pi Zero W (ARMv6 compilation is hard to pre-bake and the audience is smaller). |
-| FE-3 | Web-based first-run configuration UI | When `settings.yaml` is missing or incomplete, the Express server serves a setup page at `http://<pi-ip>/setup`. User enters MAC addresses, advertisement key, and driver choices from any browser on the local network. On Pi Zero 2 W, Chromium itself could open this page on first boot before switching to the dashboard. Server writes `settings.yaml` and restarts readers — no SSH or `configure.sh` needed. Pi Zero 2 W only (Pi Zero W has no browser). |
+| FE-3 | Web-based first-run configuration UI | **Implemented.** When `settings.yaml` is absent, the Express server auto-detects this and serves a setup form at `/setup`. User enters driver choices, MAC addresses, and advertisement key from any browser on the local network. Server writes `settings.yaml`, exits, and systemd restarts it into dashboard mode. The form remains accessible at `/setup` at any time for reconfiguration. Works on both Pi Zero W and Pi Zero 2 W (any device with a browser on the same network can configure it). |
 
 ---
 
@@ -471,3 +484,14 @@ sudo journalctl -u kiosk -f          # Pi Zero 2 W only
 | OI-2 | JBD BMS MAC address | Discovered via `sudo bluetoothctl; scan on` on Pi; entered in `configure.sh` wizard. |
 | OI-3 | Pi Zero W display | Chromium and Epiphany both require NEON SIMD (ARMv7+) and crash on ARMv6. Resolved with `packages/ui-fb` — Cairo-based framebuffer renderer, no NEON dependency. |
 | OI-4 | BLE without root | `sudo setcap cap_net_raw+eip $(which node)` applied by `install.sh`; no need to run server as root. |
+| OI-5 | Live/Offline indicator toggling | `ui-fb` had a 10 s socket timeout on its SSE `http.get` — when no sensor data arrived within that window, the socket was destroyed and reconnected, toggling the header indicator. Fixed by: (1) disabling the timeout with `req.setTimeout(0)` and (2) adding an 8 s `: heartbeat` SSE comment from the server to keep the connection alive. |
+| OI-6 | Screen blanking had no effect | `ui-fb` (running as the `camper` user) could not write to `/sys/class/graphics/fb0/blank` (root-only). The `try/catch` swallowed the error silently, setting `blanked = true` (stopping renderer draws) but not actually blanking the display. `vcgencmd display_power` was evaluated but only controls the HDMI signal and had no effect on this DSI/HDMI display combination. Fixed by using `sudo tee` with a targeted `/etc/sudoers.d/camper-monitor-blank` rule written by `configure.sh`. |
+| OI-7 | Touch device not triggering idle-timer reset | `fs.createReadStream` on `/dev/input/event*` (a character device) emits `end` prematurely in Node.js — the stream closes after its internal buffer is drained rather than waiting for new events. `net.Socket` wrapping the fd was tried but rejected by Node.js (`Unsupported fd type: FILE` — only socket/pipe fds are accepted). Fixed by using an async `fs.read` loop with `position: null`, which issues blocking reads via libuv's thread pool and correctly waits for the next input event. |
+
+---
+
+## 16. Open Items
+
+| # | Topic | Status |
+|---|-------|--------|
+| OO-1 | BLE end-to-end verification | BLE drivers (JBD BMS battery reader, Victron SmartSolar BLE reader) have not yet been tested with real hardware. Mock mode works. Real BLE connection, data parsing, and dashboard display with live devices still to be verified. |
