@@ -187,15 +187,26 @@ EOF
 else
 
     # Pi Zero 2 W: X11 + Chromium kiosk
+    ask "Screen blank timeout in minutes — 0 to disable (default: 3):"
+    read -r _blank
+    BLANK_TIMEOUT="${_blank:-3}"
+
     info "$REAL_HOME/.xinitrc..."
+    if [[ "$BLANK_TIMEOUT" -gt 0 ]]; then
+        BLANK_SECS=$(( BLANK_TIMEOUT * 60 ))
+        XSET_BLANK="xset s $BLANK_SECS $BLANK_SECS
+xset dpms 0 0 $BLANK_SECS"
+    else
+        XSET_BLANK="xset s off
+xset -dpms
+xset s noblank"
+    fi
     cat > "$REAL_HOME/.xinitrc" << EOF
 #!/bin/sh
-xset s off
-xset -dpms
-xset s noblank
+$XSET_BLANK
 openbox &
 sleep 2
-chromium --kiosk --noerrdialogs --disable-infobars --disable-notifications --no-first-run --password-store=basic --touch-events=enabled --force-device-scale-factor=1 --app=http://localhost:$SERVER_PORT
+chromium --kiosk --noerrdialogs --disable-infobars --disable-notifications --no-first-run --password-store=basic --touch-events=enabled --app=http://localhost:$SERVER_PORT
 EOF
     chmod +x "$REAL_HOME/.xinitrc"
     chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.xinitrc"
