@@ -71,6 +71,7 @@ else
     info "Kiosk display (Chromium)..."
     apt-get install -y --no-install-recommends \
         xserver-xorg x11-xserver-utils xinit openbox chromium
+    usermod -aG input "$REAL_USER"
     success "Chromium kiosk dependencies installed"
 fi
 

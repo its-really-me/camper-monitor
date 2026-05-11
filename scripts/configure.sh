@@ -195,7 +195,7 @@ xset -dpms
 xset s noblank
 openbox &
 sleep 2
-chromium --kiosk --noerrdialogs --disable-infobars --no-first-run --password-store=basic --app=http://localhost:$SERVER_PORT
+chromium --kiosk --noerrdialogs --disable-infobars --disable-notifications --no-first-run --password-store=basic --touch-events=enabled --app=http://localhost:$SERVER_PORT
 EOF
     chmod +x "$REAL_HOME/.xinitrc"
     chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.xinitrc"
@@ -268,6 +268,18 @@ else
     else
         warn "Native module installation failed — services are configured but hardware drivers may not work."
         warn "Re-run this script once the issue is resolved."
+    fi
+fi
+
+# ── web UI build (Pi Zero 2 W only) ─────────────────────────────────────────
+if [[ "$ARCH" != "armv6l" ]]; then
+    header "Web UI"
+    info "Building web UI (this takes a minute)..."
+    if sudo -u "$REAL_USER" npm run build:ui; then
+        success "Web UI built"
+    else
+        warn "Web UI build failed — Chromium will show a blank page."
+        warn "Re-run this script or: sudo -u $REAL_USER npm run build:ui"
     fi
 fi
 
