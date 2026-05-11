@@ -1,6 +1,6 @@
 # Camper Monitor
 
-Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT 75/15, running on a Raspberry Pi Zero with an attached 1024×768 display.
+Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT 75/15, running on a Raspberry Pi Zero with an attached 1024×600 display.
 
 ![Dashboard](docs/screenshot.png)
 
@@ -55,11 +55,11 @@ Open **http://localhost:5175** — mock data runs automatically, no devices need
 
 | Board | Display path | Notes |
 |---|---|---|
-| Pi Zero W | Framebuffer renderer (`ui-fb`) | ARMv6 — Chromium and Epiphany both require NEON (ARMv7+) and crash |
-| Pi Zero 2 W | Chromium kiosk | ARMv8 — full NEON support, browser works normally |
+| Pi Zero W | Framebuffer renderer (`ui-fb`) | ARMv6 — browsers require NEON (ARMv7+) and crash |
+| Pi Zero 2 W | Firefox ESR kiosk | ARMv8 — full NEON support; Firefox ESR has no low-memory warning |
 
-OS: Raspberry Pi OS Bookworm (or Debian Trixie)  
-Display: HDMI — tested at 1024×600; layout targets 1024×768 and scales to any resolution
+OS: Raspberry Pi OS Bookworm or Debian Trixie (tested on Trixie)  
+Display: HDMI at 1024×600 (confirmed hardware resolution)
 
 ### 1 — Flash and first boot
 
@@ -82,10 +82,13 @@ The installer works in the cloned directory (does not copy to `/opt`).
 
 The installer will:
 - Install Node.js 20 (via NodeSource)
-- Install Bluetooth, serial port, and X11 dependencies
-- Auto-detect your Pi model and set up the framebuffer renderer (Pi Zero W) or **Chromium** kiosk (Pi Zero 2 W)
-- Run `npm install` and build the UI
+- Set boot target to CLI and enable SSH
+- Create a 512 MB swap file (if none exists — `dphys-swapfile` is unavailable on Trixie)
+- Install Bluetooth, serial port, and X11 / Firefox ESR dependencies
+- Auto-detect your Pi model and set up the framebuffer renderer (Pi Zero W) or **Firefox ESR** kiosk (Pi Zero 2 W)
+- Run `npm install` (native modules compiled after configuration)
 - Launch the **configuration wizard** (see below)
+- Build the React UI (Pi Zero 2 W only, after wizard)
 
 > **Alternative — no clone needed:**
 > ```sh
@@ -105,7 +108,8 @@ It will ask for:
 - Battery driver (`ble` / `mock`) and BLE MAC address
 - Solar driver (`vedirect` / `ble` / `mock`), serial port or BLE MAC + advertisement key
 - HTTP server port
-- **Pi Zero W only:** touch device path and screen-blank idle timeout (minutes)
+- **Pi Zero W only:** touch device path
+- Screen-blank idle timeout in minutes — both Pi Zero W and Pi Zero 2 W (`0` to disable)
 
 It writes `settings.yaml`, `.env`, systemd service files (and `~/.xinitrc` on Pi Zero 2 W), then enables them.
 
@@ -122,7 +126,7 @@ After reboot the dashboard should appear on the display automatically. If someth
 ```sh
 sudo journalctl -u camper-monitor -f   # server logs
 sudo journalctl -u ui-fb -f            # Pi Zero W — framebuffer renderer logs
-sudo journalctl -u kiosk -f            # Pi Zero 2 W — Chromium kiosk logs
+sudo journalctl -u kiosk -f            # Pi Zero 2 W — Firefox ESR kiosk logs
 ```
 
 ---
@@ -238,8 +242,8 @@ See the [Victron SmartSolar via Bluetooth](#victron-smartsolar-via-bluetooth) se
 
 | Board | Approach | Why |
 |---|---|---|
-| Pi Zero W (ARMv6) | **Framebuffer renderer** (`ui-fb`) | No browser — Chromium and Epiphany both require NEON (ARMv7+) |
-| Pi Zero 2 W (ARMv8) | **Chromium kiosk** | Full NEON support, browser works normally |
+| Pi Zero W (ARMv6) | **Framebuffer renderer** (`ui-fb`) | No browser — browsers require NEON (ARMv7+) |
+| Pi Zero 2 W (ARMv8) | **Firefox ESR kiosk** | Full NEON support; Firefox ESR has no low-memory warning on 512 MB RAM |
 
 The install script detects the architecture automatically and sets up the right path.
 
@@ -294,9 +298,30 @@ sudo systemctl status ui-fb
 sudo journalctl -u ui-fb -f
 ```
 
-### Pi Zero 2 W — Chromium kiosk
+### Pi Zero 2 W — Firefox ESR kiosk
 
-Standard X11 + Chromium setup. The install script installs Chromium and writes `~/.xinitrc` and a `kiosk.service` automatically.
+Standard X11 + Firefox ESR setup. The install script installs Firefox ESR and writes `~/.xinitrc` and a `kiosk.service` automatically.
+
+> **Chromium** was evaluated but shows a non-suppressible "less than 1 GB RAM" warning on Pi Zero 2 W (512 MB physical RAM). Firefox ESR has no such check.
+
+The kiosk launches on VT7 (`-- vt7`) so it doesn't conflict with the getty login prompt on VT1. The `kiosk.service` uses `TTYPath=/dev/tty7`, `PAMName=login`, and `WantedBy=multi-user.target`.
+
+### Screen blanking (Pi Zero 2 W)
+
+`configure.sh` writes DPMS blanking commands into `~/.xinitrc` via `xset`. The wizard prompts for the idle timeout (minutes; `0` to disable), matching the Pi Zero W behaviour.
+
+Example `~/.xinitrc` for a 3-minute blank:
+
+```sh
+xset s 180 180
+xset dpms 0 0 180
+openbox &
+sleep 2
+mkdir -p /tmp/firefox-kiosk
+firefox-esr --kiosk --no-remote --profile /tmp/firefox-kiosk http://localhost:3000
+```
+
+No sudoers rule is needed — DPMS is handled entirely within X11. The Firefox profile is stored on tmpfs (`/tmp`) so it starts fresh after each reboot.
 
 ---
 

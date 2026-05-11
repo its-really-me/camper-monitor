@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-Camper Monitor is a real-time dashboard running on a Raspberry Pi Zero with an attached 1024×768 display. It reads live data from two Bluetooth/serial devices — an Eco-worthy 12V LiFePO4 battery (JBD BMS) and a Victron SmartSolar MPPT 75/15 — and presents the data in a clear, always-on UI suitable for a camper van.
+Camper Monitor is a real-time dashboard running on a Raspberry Pi Zero with an attached 1024×600 HDMI display. It reads live data from two Bluetooth/serial devices — an Eco-worthy 12V LiFePO4 battery (JBD BMS) and a Victron SmartSolar MPPT 75/15 — and presents the data in a clear, always-on UI suitable for a camper van.
 
 The system is also runnable on a developer's machine without any hardware (mock mode).
 
@@ -22,7 +22,7 @@ The system is also runnable on a developer's machine without any hardware (mock 
 | G2 | Show solar charger PV voltage, PV current, PV power, battery-side current, and charge mode |
 | G3 | Run on Raspberry Pi Zero (no Docker, installed via `npm install`) |
 | G4 | Run on a developer Mac/Linux with simulated data (`MOCK=true`) |
-| G5 | Display optimised for 1024×768 — Chromium kiosk on Pi Zero 2 W; framebuffer renderer on Pi Zero W. Layout auto-scales; tested at 1024×600. |
+| G5 | Display optimised for 1024×600 (confirmed hardware resolution) — Firefox ESR kiosk on Pi Zero 2 W; framebuffer renderer on Pi Zero W |
 | G6 | Each hardware reader is an independently replaceable module |
 
 ## 3. Non-Goals
@@ -36,7 +36,7 @@ The system is also runnable on a developer's machine without any hardware (mock 
 
 ## 4. Architecture
 
-### Pi Zero 2 W (ARMv8) — Chromium kiosk
+### Pi Zero 2 W (ARMv8) — Firefox ESR kiosk
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -55,7 +55,7 @@ The system is also runnable on a developer's machine without any hardware (mock 
 │              └──────┬────────┘                      │
 │                     │ SSE /events                   │
 │              ┌──────▼────────┐                      │
-│              │      ui       │  Chromium kiosk      │
+│              │      ui       │  Firefox ESR kiosk   │
 │              │ (React/Vite)  │  localhost:3000      │
 │              └───────────────┘                      │
 └─────────────────────────────────────────────────────┘
@@ -164,7 +164,7 @@ camper-monitor/
 │   │       ├── index.js       # wires readers → state → SSE
 │   │       └── api.js         # Express routes: GET /events, GET /state
 │   │
-│   ├── ui/                    # React dashboard (Chromium / dev machine)
+│   ├── ui/                    # React dashboard (Firefox ESR / dev machine)
 │   │   ├── package.json
 │   │   ├── index.html
 │   │   ├── vite.config.js
@@ -324,7 +324,7 @@ Match solar-master exactly:
 - Icon library: `lucide-react`
 - Color tokens: battery emerald `#34d399`, solar amber `#facc15`, current blue `#60a5fa`, load purple `#c084fc`, red `#f87171`
 
-### Layout (1024×768)
+### Layout (1024×600)
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -408,7 +408,7 @@ npm run build:ui
 | Board | CPU | Display path | Browser |
 |-------|-----|-------------|---------|
 | Pi Zero W | ARMv6 (ARM11) — no NEON | `ui-fb` → `/dev/fb0` | None (browsers require NEON) |
-| Pi Zero 2 W | ARMv8 | X11 + Chromium kiosk | Chromium |
+| Pi Zero 2 W | ARMv8 | X11 + Firefox ESR kiosk | Firefox ESR |
 
 Architecture is auto-detected by `uname -m` in the install/configure scripts.
 
@@ -431,9 +431,12 @@ It will:
 1. Install Node.js 20 via NodeSource
 2. Install BlueZ and set BLE capability (`setcap cap_net_raw+eip` on node binary)
 3. Add user to `dialout` (VE.Direct serial) and `input` (touch device access)
-4. **Pi Zero W**: install Cairo system libs, add user to `video` group — canvas compiles from source (~5–15 min on ARMv6)
-5. **Pi Zero 2 W**: install X11 + Chromium, build React UI
-6. Run `configure.sh` (interactive wizard)
+4. Set boot target to CLI (`multi-user.target`) and enable SSH
+5. Create 512 MB swap file via `fallocate` (skipped if swap already active; `dphys-swapfile` absent on Trixie)
+6. **Pi Zero W**: install Cairo system libs, add user to `video` group — canvas compiles from source (~5–15 min on ARMv6)
+7. **Pi Zero 2 W**: install X11 + Firefox ESR, add user to `input` + `tty` groups
+8. Run `configure.sh` (interactive wizard)
+9. **Pi Zero 2 W**: build React UI (`npm run build:ui`) after wizard completes
 
 ### Configure (re-runnable at any time)
 
@@ -441,7 +444,7 @@ It will:
 sudo bash /opt/camper-monitor/scripts/configure.sh
 ```
 
-Prompts for battery driver + MAC, solar driver + port/MAC/key, HTTP port. On Pi Zero W: also prompts for touch device path and screen-blank idle timeout. Writes:
+Prompts for battery driver + MAC, solar driver + port/MAC/key, HTTP port. On Pi Zero W: also prompts for touch device path. Both Pi models: prompts for screen-blank idle timeout (minutes; `0` to disable). Writes:
 - `settings.yaml`
 - `.env`
 - systemd service files (`camper-monitor`, `ui-fb` or `kiosk`)
@@ -487,6 +490,13 @@ sudo journalctl -u kiosk -f          # Pi Zero 2 W only
 | OI-5 | Live/Offline indicator toggling | `ui-fb` had a 10 s socket timeout on its SSE `http.get` — when no sensor data arrived within that window, the socket was destroyed and reconnected, toggling the header indicator. Fixed by: (1) disabling the timeout with `req.setTimeout(0)` and (2) adding an 8 s `: heartbeat` SSE comment from the server to keep the connection alive. |
 | OI-6 | Screen blanking had no effect | `ui-fb` (running as the `camper` user) could not write to `/sys/class/graphics/fb0/blank` (root-only). The `try/catch` swallowed the error silently, setting `blanked = true` (stopping renderer draws) but not actually blanking the display. `vcgencmd display_power` was evaluated but only controls the HDMI signal and had no effect on this DSI/HDMI display combination. Fixed by using `sudo tee` with a targeted `/etc/sudoers.d/camper-monitor-blank` rule written by `configure.sh`. |
 | OI-7 | Touch device not triggering idle-timer reset | `fs.createReadStream` on `/dev/input/event*` (a character device) emits `end` prematurely in Node.js — the stream closes after its internal buffer is drained rather than waiting for new events. `net.Socket` wrapping the fd was tried but rejected by Node.js (`Unsupported fd type: FILE` — only socket/pipe fds are accepted). Fixed by using an async `fs.read` loop with `position: null`, which issues blocking reads via libuv's thread pool and correctly waits for the next input event. |
+| OI-8 | BLE driver crashes server at boot | `@abandonware/noble` throws during `require()` when the HCI Bluetooth socket is not ready at boot time. The systemd `After=bluetooth.target` ordering is not sufficient — the adapter needs a few seconds after the service starts to initialise. Fixed by wrapping `require()` in a try/catch inside `start()` and scheduling a 5 s retry on transient errors, and emitting an `'error'` event (instead of throwing) when the `MODULE_NOT_FOUND` error occurs so the server continues running without the BLE reader. |
+| OI-9 | Kiosk systemd service fails: `/dev/tty0 Permission denied` | `startx` launched from a systemd service with no controlling terminal tries to open `/dev/tty0` for VT detection and fails. Fixed by assigning VT7 explicitly: `TTYPath=/dev/tty7`, `StandardInput=tty`, `PAMName=login`, and passing `-- vt7` to `startx`. `WantedBy` changed from `graphical.target` to `multi-user.target` (Pi OS Lite boots to CLI, not desktop). |
+| OI-10 | Chromium low-memory warning not suppressible | Chromium on Pi Zero 2 W (512 MB physical RAM) shows a hardware-level "less than 1 GB" warning at startup. The flag `--disable-infobars` does not suppress it; increasing swap has no effect (Chromium checks physical RAM). Replaced Chromium with **Firefox ESR**, which has no such check and renders the dashboard without warnings. The `kiosk.service` `.xinitrc` was updated accordingly. |
+| OI-11 | React UI not built on first run | The server requires `packages/ui/dist/` to exist to serve the dashboard. This directory is not committed to the repo. `configure.sh` did not include a build step, so Pi Zero 2 W installs showed a white page. Fixed by adding `npm run build:ui` to `configure.sh` (Pi Zero 2 W only — Pi Zero W uses `ui-fb` and does not need the built React output). |
+| OI-12 | 512 MB swap creation — `dphys-swapfile` absent | The install script originally used `dphys-swapfile` to create swap. This utility is not installed on Debian Trixie. Replaced with `fallocate -l 512M /var/swap` + `mkswap` + `swapon` + an `/etc/fstab` entry, guarded by a check that skips creation if swap is already active. |
+| OI-13 | Firefox profile not loadable | Firefox ESR launched with `--profile /tmp/firefox-kiosk` fails with "profile cannot be loaded" if the directory does not exist at launch time (it is on tmpfs and is empty after each reboot). Fixed by adding `mkdir -p /tmp/firefox-kiosk` immediately before the `firefox-esr` line in `~/.xinitrc`. |
+| OI-14 | Layout overflow — 20 px scrollbar visible | The `SolarCard` natural height (~289 px) exceeded the grid's `minHeight: 260px` constraint, causing a 20 px scroll. Fixed by switching the cards grid to `flex-1 min-h-0` (fills all available flex space without overflowing), reducing gap tokens from `gap-3` to `gap-2` throughout both cards, and removing a stray `mt-1` from the second battery-side row in `SolarCard`. |
 
 ---
 
@@ -494,4 +504,4 @@ sudo journalctl -u kiosk -f          # Pi Zero 2 W only
 
 | # | Topic | Status |
 |---|-------|--------|
-| OO-1 | BLE end-to-end verification | BLE drivers (JBD BMS battery reader, Victron SmartSolar BLE reader) have not yet been tested with real hardware. Mock mode works. Real BLE connection, data parsing, and dashboard display with live devices still to be verified. |
+| OO-1 | BLE end-to-end verification | BLE drivers (JBD BMS battery reader, Victron SmartSolar BLE reader) have not yet been tested with real hardware. Mock mode works. Pi Zero 2 W kiosk + server confirmed working on real hardware. Real BLE connection, data parsing, and dashboard display with live devices — in progress. |
