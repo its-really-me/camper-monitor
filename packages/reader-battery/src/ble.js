@@ -58,6 +58,7 @@ function createBleReader(config) {
   let pollTimer    = null
   let reconnTimer  = null
   let running      = false
+  let nobleReady   = false
 
   function matchDevice(p) {
     if (mac && p.address.toLowerCase().replace(/:/g, '') === mac.replace(/:/g, '')) return true
@@ -118,16 +119,27 @@ function createBleReader(config) {
     start() {
       running = true
       try { noble = require('@abandonware/noble') }
-      catch { throw new Error('BLE driver requires @abandonware/noble — run: npm install @abandonware/noble') }
+      catch (err) {
+        if (err.code === 'MODULE_NOT_FOUND') {
+          events.emit('error', new Error('BLE driver requires @abandonware/noble — run: npm install @abandonware/noble'))
+          return
+        }
+        // Bluetooth adapter not ready yet (common on boot) — retry
+        if (running) setTimeout(() => this.start(), 5000)
+        return
+      }
 
-      noble.on('stateChange', state => {
-        if (state === 'poweredOn') noble.startScanning([], false)
-      })
-      noble.on('discover', p => {
-        if (!matchDevice(p)) return
-        noble.stopScanning()
-        connect(p)
-      })
+      if (!nobleReady) {
+        nobleReady = true
+        noble.on('stateChange', state => {
+          if (state === 'poweredOn') noble.startScanning([], false)
+        })
+        noble.on('discover', p => {
+          if (!matchDevice(p)) return
+          noble.stopScanning()
+          connect(p)
+        })
+      }
       if (noble.state === 'poweredOn') noble.startScanning([], false)
     },
     stop() {

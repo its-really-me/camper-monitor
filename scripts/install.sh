@@ -50,7 +50,7 @@ success "Node.js $(node --version)"
 header "2 / 5  System dependencies"
 
 info "Bluetooth (JBD BMS reader)..."
-apt-get install -y bluetooth bluez libbluetooth-dev
+apt-get install -y bluetooth bluez libbluetooth-dev build-essential
 systemctl enable bluetooth
 systemctl start bluetooth
 setcap cap_net_raw+eip "$(which node)"    # BLE without running as root
