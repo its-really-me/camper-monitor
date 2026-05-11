@@ -206,6 +206,7 @@ xset s noblank"
 $XSET_BLANK
 openbox &
 sleep 2
+mkdir -p /tmp/firefox-kiosk
 firefox-esr --kiosk --no-remote --profile /tmp/firefox-kiosk http://localhost:$SERVER_PORT
 EOF
     chmod +x "$REAL_HOME/.xinitrc"
