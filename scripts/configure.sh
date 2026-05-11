@@ -221,10 +221,12 @@ EOF
     cat > /etc/systemd/system/kiosk.service << EOF
 [Unit]
 Description=Kiosk
-After=camper-monitor.service
+After=camper-monitor.service systemd-logind.service
+Requires=systemd-logind.service
 
 [Service]
 User=$REAL_USER
+PAMName=login
 TTYPath=/dev/tty7
 StandardInput=tty
 StandardOutput=journal
