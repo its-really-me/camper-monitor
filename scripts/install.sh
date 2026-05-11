@@ -44,15 +44,17 @@ info "Ensuring SSH is enabled..."
 systemctl enable ssh
 success "SSH enabled"
 
-info "Swap: setting to 512 MB so Chromium doesn't warn about low memory..."
-if command -v dphys-swapfile &>/dev/null; then
-    dphys-swapfile swapoff 2>/dev/null || true
-    sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=512/' /etc/dphys-swapfile
-    dphys-swapfile setup
-    dphys-swapfile swapon
-    success "Swap set to 512 MB"
+info "Swap: ensuring 512 MB swap file so Chromium doesn't warn about low memory..."
+if ! swapon --show | grep -q /var/swap; then
+    fallocate -l 512M /var/swap
+    chmod 600 /var/swap
+    mkswap /var/swap
+    swapon /var/swap
+    grep -qxF '/var/swap none swap sw 0 0' /etc/fstab \
+        || echo '/var/swap none swap sw 0 0' >> /etc/fstab
+    success "Swap file created at /var/swap (512 MB)"
 else
-    warn "dphys-swapfile not found — skipping swap setup"
+    success "Swap already active"
 fi
 
 apt-get update -qq
