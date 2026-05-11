@@ -92,9 +92,9 @@ else
     # Pi Zero 2 W: X11 + Chromium kiosk
     info "Kiosk display (Chromium)..."
     apt-get install -y --no-install-recommends \
-        xserver-xorg x11-xserver-utils xinit openbox chromium
+        xserver-xorg x11-xserver-utils xinit openbox firefox-esr
     usermod -aG input "$REAL_USER"
-    success "Chromium kiosk dependencies installed"
+    success "Firefox kiosk dependencies installed"
 fi
 
 # ── 4. clone / update ───────────────────────────────────────────────────────

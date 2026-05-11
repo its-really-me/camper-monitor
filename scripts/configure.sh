@@ -206,7 +206,7 @@ xset s noblank"
 $XSET_BLANK
 openbox &
 sleep 2
-chromium --kiosk --noerrdialogs --disable-infobars --disable-notifications --no-first-run --password-store=basic --touch-events=enabled --app=http://localhost:$SERVER_PORT
+firefox-esr --kiosk --no-remote --profile /tmp/firefox-kiosk http://localhost:$SERVER_PORT
 EOF
     chmod +x "$REAL_HOME/.xinitrc"
     chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.xinitrc"

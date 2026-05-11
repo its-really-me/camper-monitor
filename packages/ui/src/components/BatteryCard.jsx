@@ -56,7 +56,7 @@ function SocGauge({ soc }) {
 function Stat({ label, value, color }) {
   return (
     <div className="flex flex-col items-center text-center">
-      <span className="text-xs text-slate-500 mb-0.5 leading-tight">{label}</span>
+      <span className="text-xs text-slate-300 mb-0.5 leading-tight">{label}</span>
       <span className="text-xl font-bold leading-tight" style={color ? { color } : undefined}>
         {value}
       </span>
@@ -77,11 +77,11 @@ export function BatteryCard({ battery, connected }) {
   const badge = statusBadge(battery?.status)
 
   return (
-    <div className="rounded-xl p-3 bg-slate-800/60 border border-slate-700 flex flex-col gap-3 h-full">
+    <div className="rounded-xl p-3 bg-slate-800/60 border border-slate-700 flex flex-col gap-2 h-full">
       {/* Header */}
       <div className="flex items-center gap-2 shrink-0">
-        <Battery size={20} className="text-slate-400 shrink-0" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Battery</span>
+        <Battery size={20} className="text-slate-200 shrink-0" />
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-100">Battery</span>
         <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${connected ? 'bg-emerald-900/60 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>
           {connected ? 'Live' : 'Offline'}
         </span>
