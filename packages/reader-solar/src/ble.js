@@ -87,19 +87,32 @@ function createBleReader(config) {
     }
   }
 
+  let nobleReady = false
+
   return {
     start() {
       running = true
       try { noble = require('@abandonware/noble') }
-      catch { throw new Error('BLE driver requires @abandonware/noble — run: npm install @abandonware/noble') }
-
-      noble.on('stateChange', state => {
-        if (state === 'poweredOn') {
-          events.emit('connected')
-          noble.startScanning([], true)   // allow duplicates for continuous updates
+      catch (err) {
+        if (err.code === 'MODULE_NOT_FOUND') {
+          events.emit('error', new Error('BLE driver requires @abandonware/noble — run: npm install @abandonware/noble'))
+          return
         }
-      })
-      noble.on('discover', onDiscover)
+        // Bluetooth adapter not ready yet (common on boot) — retry
+        if (running) setTimeout(() => this.start(), 5000)
+        return
+      }
+
+      if (!nobleReady) {
+        nobleReady = true
+        noble.on('stateChange', state => {
+          if (state === 'poweredOn') {
+            events.emit('connected')
+            noble.startScanning([], true)   // allow duplicates for continuous updates
+          }
+        })
+        noble.on('discover', onDiscover)
+      }
       if (noble.state === 'poweredOn') {
         events.emit('connected')
         noble.startScanning([], true)
