@@ -44,7 +44,10 @@ info "Ensuring SSH is enabled..."
 systemctl enable ssh
 success "SSH enabled"
 
-info "Swap: ensuring 512 MB swap file so Chromium doesn't warn about low memory..."
+info "Swap: disabling rpi-resize-swap (conflicts with manual swap file)..."
+systemctl disable rpi-resize-swap 2>/dev/null && success "rpi-resize-swap disabled" || true
+
+info "Swap: ensuring 512 MB swap file..."
 if ! swapon --show | grep -q /var/swap; then
     fallocate -l 512M /var/swap
     chmod 600 /var/swap
