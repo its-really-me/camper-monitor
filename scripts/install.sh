@@ -44,6 +44,17 @@ info "Ensuring SSH is enabled..."
 systemctl enable ssh
 success "SSH enabled"
 
+info "Swap: setting to 512 MB so Chromium doesn't warn about low memory..."
+if command -v dphys-swapfile &>/dev/null; then
+    dphys-swapfile swapoff 2>/dev/null || true
+    sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=512/' /etc/dphys-swapfile
+    dphys-swapfile setup
+    dphys-swapfile swapon
+    success "Swap set to 512 MB"
+else
+    warn "dphys-swapfile not found — skipping swap setup"
+fi
+
 apt-get update -qq
 
 # ── 2. Node.js 20 ───────────────────────────────────────────────────────────

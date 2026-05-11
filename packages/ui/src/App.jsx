@@ -14,7 +14,7 @@ export default function App() {
   const lastUpdate = state?.battery?.ts ?? state?.solar?.ts ?? null
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="h-screen overflow-hidden bg-slate-950 text-slate-100 flex flex-col">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-slate-800 shrink-0">
         <h1 className="text-xl font-bold tracking-tight">Camper Monitor</h1>
@@ -30,7 +30,7 @@ export default function App() {
       </header>
 
       {/* Main */}
-      <main className="flex-1 flex flex-col gap-3 p-4">
+      <main className="flex-1 flex flex-col gap-3 p-3">
         {/* Cards row */}
         <div className="grid grid-cols-2 gap-3" style={{ minHeight: '260px' }}>
           <BatteryCard
