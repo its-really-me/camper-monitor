@@ -24,6 +24,9 @@ let state     = null
 let connected = false
 let blanked   = false
 
+// Hide the terminal cursor that bleeds through the framebuffer from tty1
+try { fs.writeFileSync('/dev/tty1', '\x1b[?25l') } catch {}
+
 // Open framebuffer — gracefully degrade if not available (e.g. dev machine)
 let fb = null
 try {
