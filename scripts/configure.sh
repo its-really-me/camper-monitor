@@ -205,6 +205,7 @@ xset s noblank"
     cat > "$REAL_HOME/.xinitrc" << EOF
 #!/bin/sh
 $XSET_BLANK
+export MOZ_USE_XINPUT2=1
 openbox &
 sleep 2
 mkdir -p /tmp/firefox-kiosk
