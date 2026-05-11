@@ -216,7 +216,7 @@ EOF
     info "Adding $REAL_USER to tty group..."
     usermod -aG tty "$REAL_USER"
 
-    info "systemd: kiosk.service  (Chromium)..."
+    info "systemd: kiosk.service  (Firefox ESR)..."
     cat > /etc/systemd/system/kiosk.service << EOF
 [Unit]
 Description=Kiosk
@@ -230,6 +230,7 @@ StandardInput=tty
 StandardOutput=journal
 StandardError=journal
 Environment=DISPLAY=:0
+ExecStartPre=-/bin/rm -f /tmp/.X0-lock
 ExecStart=/usr/bin/startx -- vt7
 Restart=always
 RestartSec=3
