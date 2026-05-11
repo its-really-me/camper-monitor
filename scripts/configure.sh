@@ -120,7 +120,8 @@ info "systemd: camper-monitor.service..."
 cat > /etc/systemd/system/camper-monitor.service << EOF
 [Unit]
 Description=Camper Monitor
-After=network.target bluetooth.target
+After=bluetooth.target
+Wants=network.target
 
 [Service]
 WorkingDirectory=$INSTALL_DIR
