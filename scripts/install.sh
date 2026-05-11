@@ -35,6 +35,11 @@ fi
 
 # ── 1. system update ────────────────────────────────────────────────────────
 header "1 / 5  System packages"
+
+info "Boot target: CLI (multi-user)..."
+systemctl set-default multi-user.target
+success "Boot target set"
+
 apt-get update -qq
 
 # ── 2. Node.js 20 ───────────────────────────────────────────────────────────
