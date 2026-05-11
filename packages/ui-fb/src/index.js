@@ -1,6 +1,7 @@
 'use strict'
 
-const fs = require('fs')
+const fs  = require('fs')
+const net = require('net')
 
 let createCanvas
 try {
@@ -57,7 +58,8 @@ function resetIdleTimer() {
 
 if (BLANK_MS > 0) {
   try {
-    const touch = fs.createReadStream(TOUCH_DEVICE, { highWaterMark: 16 })
+    const fd    = fs.openSync(TOUCH_DEVICE, 'r')
+    const touch = new net.Socket({ fd, readable: true, writable: false })
     touch.on('data', resetIdleTimer)
     touch.on('error', err => console.warn(`[ui-fb] Touch device (${TOUCH_DEVICE}): ${err.message}`))
     console.log(`[ui-fb] Screen blanks after ${BLANK_TIMEOUT_MIN} min idle (${TOUCH_DEVICE})`)
@@ -125,10 +127,7 @@ function connectSSE(url) {
     setTimeout(() => connectSSE(url), 5000)
   })
 
-  req.setTimeout(10000, () => {
-    req.destroy()
-    setTimeout(() => connectSSE(url), 5000)
-  })
+  req.setTimeout(0) // disable socket timeout — SSE is a persistent connection
 }
 
 // ── start ────────────────────────────────────────────────────────────────────

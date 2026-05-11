@@ -182,7 +182,9 @@ function createApi(state, { setupMode = false, settingsPath } = {}) {
     res.flushHeaders()
     res.write(`data: ${JSON.stringify(state.toJSON())}\n\n`)
     clients.add(res)
-    req.on('close', () => clients.delete(res))
+    // Heartbeat keeps the socket alive when no sensor data arrives
+    const hb = setInterval(() => res.write(': heartbeat\n\n'), 8000)
+    req.on('close', () => { clients.delete(res); clearInterval(hb) })
   })
 
   app.get('/state', (_req, res) => res.json(state.toJSON()))
