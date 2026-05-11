@@ -201,21 +201,29 @@ EOF
     chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.xinitrc"
     success ".xinitrc"
 
+    info "Adding $REAL_USER to tty group..."
+    usermod -aG tty "$REAL_USER"
+
     info "systemd: kiosk.service  (Chromium)..."
     cat > /etc/systemd/system/kiosk.service << EOF
 [Unit]
 Description=Kiosk
-After=camper-monitor.service graphical.target
+After=camper-monitor.service
 
 [Service]
 User=$REAL_USER
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
 Environment=DISPLAY=:0
-ExecStart=/usr/bin/startx
+ExecStart=/usr/bin/startx -- vt1
 Restart=always
 RestartSec=3
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
     systemctl enable kiosk
