@@ -205,7 +205,9 @@ xset s noblank"
     cat > "$REAL_HOME/.xinitrc" << EOF
 #!/bin/sh
 $XSET_BLANK
-export MOZ_USE_XINPUT2=1
+# Disable HDMI CEC virtual inputs — not real devices, interfere with DPMS
+xinput list | grep 'vc4-hdmi' | sed 's/.*id=\([0-9]*\).*/\1/' | \
+    while read id; do xinput disable "\$id" 2>/dev/null || true; done
 openbox &
 sleep 2
 mkdir -p /tmp/firefox-kiosk
