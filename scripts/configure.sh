@@ -217,31 +217,45 @@ EOF
     info "Adding $REAL_USER to tty group..."
     usermod -aG tty "$REAL_USER"
 
-    info "systemd: kiosk.service  (Firefox ESR)..."
-    cat > /etc/systemd/system/kiosk.service << EOF
-[Unit]
-Description=Kiosk
-After=camper-monitor.service
-
+    # Getty autologin on tty7 — more reliable than PAMName= in a system service
+    info "Getty autologin on tty7..."
+    mkdir -p /etc/systemd/system/getty@tty7.service.d
+    cat > /etc/systemd/system/getty@tty7.service.d/autologin.conf << EOF
 [Service]
-User=$REAL_USER
-PAMName=login
-TTYPath=/dev/tty7
-StandardInput=tty
-StandardOutput=journal
-StandardError=journal
-Environment=DISPLAY=:0
-ExecStartPre=-/bin/rm -f /tmp/.X0-lock
-ExecStart=/usr/bin/startx -- vt7
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $REAL_USER --noclear %I \$TERM
 EOF
     systemctl daemon-reload
-    systemctl enable kiosk
-    success "kiosk.service enabled"
+    systemctl enable getty@tty7.service
+    success "Getty autologin on tty7 enabled"
+
+    # Kiosk start script — runs from .bash_profile on tty7 login
+    info "$REAL_HOME/.kiosk-start.sh..."
+    cat > "$REAL_HOME/.kiosk-start.sh" << 'KIOSK'
+#!/bin/sh
+if [ "$(tty)" = "/dev/tty7" ]; then
+    sleep 10   # wait for camper-monitor to be ready
+    rm -f /tmp/.X0-lock
+    while true; do
+        startx 2>&1 | logger -t kiosk
+        sleep 3
+    done
+fi
+KIOSK
+    chmod +x "$REAL_HOME/.kiosk-start.sh"
+    chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.kiosk-start.sh"
+    success ".kiosk-start.sh"
+
+    info "$REAL_HOME/.bash_profile..."
+    grep -qF '.kiosk-start.sh' "$REAL_HOME/.bash_profile" 2>/dev/null \
+        || echo '. "$HOME/.kiosk-start.sh"' >> "$REAL_HOME/.bash_profile"
+    chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.bash_profile"
+    success ".bash_profile"
+
+    # Disable legacy kiosk.service if present from a previous install
+    systemctl disable kiosk 2>/dev/null || true
+    rm -f /etc/systemd/system/kiosk.service
+    systemctl daemon-reload
 
 fi
 
@@ -292,7 +306,7 @@ if [[ "$ARCH" != "armv6l" ]]; then
     if sudo -u "$REAL_USER" npm run build:ui; then
         success "Web UI built"
     else
-        warn "Web UI build failed — Chromium will show a blank page."
+        warn "Web UI build failed — Firefox ESR will show a blank page."
         warn "Re-run this script or: sudo -u $REAL_USER npm run build:ui"
     fi
 fi
@@ -309,11 +323,12 @@ if [[ "$ARCH" == "armv6l" ]]; then
     echo "  Logs       :  sudo journalctl -u camper-monitor -f"
     echo "                sudo journalctl -u ui-fb -f"
 else
-    echo "  Start now  :  sudo systemctl start camper-monitor kiosk"
+    echo "  Start now  :  sudo systemctl start camper-monitor"
+    echo "                (kiosk starts automatically on tty7 login)"
     echo "  Or reboot  :  sudo reboot"
     echo
     echo "  Logs       :  sudo journalctl -u camper-monitor -f"
-    echo "                sudo journalctl -u kiosk -f"
+    echo "                journalctl -t kiosk -f   # Firefox ESR / X11"
 fi
 
 echo "  Re-run     :  sudo bash $INSTALL_DIR/scripts/configure.sh"
