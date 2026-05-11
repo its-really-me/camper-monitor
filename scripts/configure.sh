@@ -178,6 +178,12 @@ EOF
     systemctl enable ui-fb
     success "ui-fb.service enabled"
 
+    info "sudoers: framebuffer blank permission..."
+    echo "$REAL_USER ALL=(root) NOPASSWD: /usr/bin/tee /sys/class/graphics/fb0/blank" \
+        > /etc/sudoers.d/camper-monitor-blank
+    chmod 440 /etc/sudoers.d/camper-monitor-blank
+    success "sudoers rule added"
+
 else
 
     # Pi Zero 2 W: X11 + Chromium kiosk
