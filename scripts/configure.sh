@@ -195,7 +195,7 @@ xset -dpms
 xset s noblank
 openbox &
 sleep 2
-chromium --kiosk --noerrdialogs --disable-infobars --disable-notifications --no-first-run --password-store=basic --touch-events=enabled --app=http://localhost:$SERVER_PORT
+chromium --kiosk --noerrdialogs --disable-infobars --disable-notifications --no-first-run --password-store=basic --touch-events=enabled --force-device-scale-factor=1 --app=http://localhost:$SERVER_PORT
 EOF
     chmod +x "$REAL_HOME/.xinitrc"
     chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.xinitrc"
