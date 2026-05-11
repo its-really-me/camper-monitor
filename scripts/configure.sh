@@ -237,7 +237,7 @@ if [ "$(tty)" = "/dev/tty7" ]; then
     sleep 10   # wait for camper-monitor to be ready
     rm -f /tmp/.X0-lock
     while true; do
-        startx 2>&1 | logger -t kiosk
+        startx -- vt7 2>&1 | logger -t kiosk
         sleep 3
     done
 fi
