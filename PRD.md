@@ -42,22 +42,22 @@ The system is also runnable on a developer's machine without any hardware (mock 
 ┌─────────────────────────────────────────────────────┐
 │                Raspberry Pi Zero 2 W                │
 │                                                     │
-│  ┌──────────────────┐   ┌──────────────────────┐   │
-│  │  reader-battery  │   │    reader-solar       │   │
-│  │  (JBD BMS / BLE) │   │ (Victron VE.Direct   │   │
-│  └────────┬─────────┘   │  or BLE fallback)    │   │
-│           │             └──────────┬───────────┘   │
-│           └──────────┬────────────┘               │
-│                      ▼                             │
-│              ┌───────────────┐                     │
-│              │    server     │  Express + SSE      │
-│              │  (port 3000)  │  serves built UI    │
-│              └──────┬────────┘                     │
-│                     │ SSE /events                  │
-│              ┌──────▼────────┐                     │
-│              │      ui       │  Chromium kiosk     │
+│  ┌──────────────────┐   ┌──────────────────────┐    │
+│  │  reader-battery  │   │    reader-solar      │    │
+│  │  (JBD BMS / BLE) │   │ (Victron VE.Direct   │    │
+│  └────────┬─────────┘   │  or BLE fallback)    │    │
+│           │             └──────────┬───────────┘    │
+│           └──────────┬─────────────┘                │
+│                      ▼                              │
+│              ┌───────────────┐                      │
+│              │    server     │  Express + SSE       │
+│              │  (port 3000)  │  serves built UI     │
+│              └──────┬────────┘                      │
+│                     │ SSE /events                   │
+│              ┌──────▼────────┐                      │
+│              │      ui       │  Chromium kiosk      │
 │              │ (React/Vite)  │  localhost:3000      │
-│              └───────────────┘                     │
+│              └───────────────┘                      │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -69,20 +69,20 @@ Pi Zero W (ARM11) has no NEON SIMD extensions. Both Chromium and Epiphany/WebKit
 ┌─────────────────────────────────────────────────────┐
 │                Raspberry Pi Zero W                  │
 │                                                     │
-│  ┌──────────────────┐   ┌──────────────────────┐   │
-│  │  reader-battery  │   │    reader-solar       │   │
-│  └────────┬─────────┘   └──────────┬───────────┘   │
-│           └──────────┬────────────┘               │
-│                      ▼                             │
-│              ┌───────────────┐                     │
-│              │    server     │  Express + SSE      │
-│              │  (port 3000)  │                     │
-│              └──────┬────────┘                     │
-│                     │ SSE /events                  │
-│              ┌──────▼────────┐                     │
-│              │    ui-fb      │  Node.js + Cairo    │
-│              │ (node-canvas) │  → /dev/fb0         │
-│              └───────────────┘                     │
+│  ┌──────────────────┐   ┌──────────────────────┐    │
+│  │  reader-battery  │   │    reader-solar      │    │
+│  └────────┬─────────┘   └──────────┬───────────┘    │
+│           └──────────┬─────────────┘                │
+│                      ▼                              │
+│              ┌───────────────┐                      │
+│              │    server     │  Express + SSE       │
+│              │  (port 3000)  │                      │
+│              └──────┬────────┘                      │
+│                     │ SSE /events                   │
+│              ┌──────▼────────┐                      │
+│              │    ui-fb      │  Node.js + Cairo     │
+│              │ (node-canvas) │  → /dev/fb0          │
+│              └───────────────┘                      │
 └─────────────────────────────────────────────────────┘
 ```
 
