@@ -1,6 +1,7 @@
 'use strict'
 
-const fs = require('fs')
+const fs                = require('fs')
+const { execFileSync }  = require('child_process')
 
 let createCanvas
 try {
@@ -43,8 +44,17 @@ const TOUCH_DEVICE      = process.env.TOUCH_DEVICE ?? '/dev/input/event0'
 const BLANK_MS          = BLANK_TIMEOUT_MIN * 60 * 1000
 
 function setBlank(on) {
-  try { fs.writeFileSync('/sys/class/graphics/fb0/blank', on ? '1' : '0') } catch {}
+  // vcgencmd works for members of the video group (no root needed);
+  // sysfs fallback requires root and will warn if it fails
+  try {
+    execFileSync('vcgencmd', ['display_power', on ? '0' : '1'], { timeout: 2000 })
+  } catch {
+    try { fs.writeFileSync('/sys/class/graphics/fb0/blank', on ? '1' : '0') } catch (e) {
+      console.warn(`[ui-fb] Cannot blank display: ${e.message}`)
+    }
+  }
   blanked = on
+  console.log(`[ui-fb] Display ${on ? 'blanked' : 'unblanked'}`)
 }
 
 let blankTimer = null
