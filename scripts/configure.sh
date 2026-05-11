@@ -213,12 +213,12 @@ After=camper-monitor.service
 [Service]
 User=$REAL_USER
 PAMName=login
-TTYPath=/dev/tty1
+TTYPath=/dev/tty7
 StandardInput=tty
 StandardOutput=journal
 StandardError=journal
 Environment=DISPLAY=:0
-ExecStart=/usr/bin/startx -- vt1
+ExecStart=/usr/bin/startx -- vt7
 Restart=always
 RestartSec=3
 

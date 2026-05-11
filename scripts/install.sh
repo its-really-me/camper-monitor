@@ -40,6 +40,10 @@ info "Boot target: CLI (multi-user)..."
 systemctl set-default multi-user.target
 success "Boot target set"
 
+info "Ensuring SSH is enabled..."
+systemctl enable ssh
+success "SSH enabled"
+
 apt-get update -qq
 
 # ── 2. Node.js 20 ───────────────────────────────────────────────────────────
