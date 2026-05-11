@@ -226,6 +226,8 @@ EOF
 Description=Kiosk
 After=camper-monitor.service systemd-logind.service
 Requires=systemd-logind.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 User=$REAL_USER
@@ -239,8 +241,6 @@ ExecStartPre=-/bin/rm -f /tmp/.X0-lock
 ExecStart=/usr/bin/startx -- vt7
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=60
-StartLimitBurst=3
 
 [Install]
 WantedBy=multi-user.target
