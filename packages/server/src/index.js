@@ -8,6 +8,7 @@ const yaml = require('js-yaml')
 
 const { createReader: createBatteryReader } = require('@camper-monitor/reader-battery')
 const { createReader: createSolarReader }   = require('@camper-monitor/reader-solar')
+const { createReader: createStarterReader } = require('@camper-monitor/reader-starter')
 const { createApi }                         = require('./api')
 
 const SETTINGS_PATH = path.resolve(__dirname, '../../../settings.yaml')
@@ -16,10 +17,14 @@ function loadConfig() {
   const cfg = yaml.load(fs.readFileSync(SETTINGS_PATH, 'utf8'))
 
   // Environment variable overrides
-  if (process.env.BATTERY_DRIVER) cfg.readers.battery.driver = process.env.BATTERY_DRIVER
-  if (process.env.SOLAR_DRIVER)   cfg.readers.solar.driver   = process.env.SOLAR_DRIVER
-  if (process.env.SOLAR_PORT)     cfg.readers.solar.port     = process.env.SOLAR_PORT
-  if (process.env.PORT)           cfg.server.port            = parseInt(process.env.PORT, 10)
+  if (process.env.BATTERY_DRIVER) cfg.readers.battery.driver  = process.env.BATTERY_DRIVER
+  if (process.env.SOLAR_DRIVER)   cfg.readers.solar.driver    = process.env.SOLAR_DRIVER
+  if (process.env.SOLAR_PORT)     cfg.readers.solar.port      = process.env.SOLAR_PORT
+  if (process.env.STARTER_DRIVER) {
+    cfg.readers.starter = cfg.readers.starter ?? {}
+    cfg.readers.starter.driver = process.env.STARTER_DRIVER
+  }
+  if (process.env.PORT)           cfg.server.port             = parseInt(process.env.PORT, 10)
 
   return cfg
 }
@@ -34,27 +39,38 @@ function startNormalServer() {
   const cfg = loadConfig()
   console.log(`Battery driver : ${cfg.readers.battery.driver}`)
   console.log(`Solar driver   : ${cfg.readers.solar.driver}`)
+  if (cfg.readers.starter) console.log(`Starter driver : ${cfg.readers.starter.driver}`)
+
+  const hasStarter = !!cfg.readers.starter
 
   const state = {
     battery:          null,
     solar:            null,
+    starter:          null,
     batteryConnected: false,
     solarConnected:   false,
+    starterConnected: false,
     toJSON() {
-      return {
+      const out = {
         battery:          this.battery,
         solar:            this.solar,
         batteryConnected: this.batteryConnected,
         solarConnected:   this.solarConnected,
       }
+      if (hasStarter) {
+        out.starter          = this.starter
+        out.starterConnected = this.starterConnected
+      }
+      return out
     },
   }
 
   const { app, push } = createApi(state, {
-    getDiagnostics: () => ({
-      battery: batteryReader.diagnostics(),
-      solar:   solarReader.diagnostics(),
-    }),
+    getDiagnostics: () => {
+      const d = { battery: batteryReader.diagnostics(), solar: solarReader.diagnostics() }
+      if (starterReader) d.starter = starterReader.diagnostics()
+      return d
+    },
   })
 
   function wire(reader, dataKey, connKey) {
@@ -77,30 +93,36 @@ function startNormalServer() {
 
   const batteryReader = createBatteryReader(cfg.readers.battery)
   const solarReader   = createSolarReader(cfg.readers.solar)
+  const starterReader = hasStarter ? createStarterReader(cfg.readers.starter) : null
 
   wire(batteryReader, 'battery', 'batteryConnected')
   wire(solarReader,   'solar',   'solarConnected')
+  if (starterReader) wire(starterReader, 'starter', 'starterConnected')
 
   const port = cfg.server?.port ?? 3000
   app.listen(port, () => console.log(`Server →  http://localhost:${port}`))
 
   batteryReader.start()
   solarReader.start()
+  starterReader?.start()
 
   // Initial snapshot after 10s — catches startup failures before the 60s interval fires
   setTimeout(() => {
     logReaderDiag('battery', batteryReader.diagnostics())
     logReaderDiag('solar',   solarReader.diagnostics())
+    if (starterReader) logReaderDiag('starter', starterReader.diagnostics())
   }, 10_000)
 
   setInterval(() => {
     logReaderDiag('battery', batteryReader.diagnostics())
     logReaderDiag('solar',   solarReader.diagnostics())
+    if (starterReader) logReaderDiag('starter', starterReader.diagnostics())
   }, 60_000)
 
   process.on('SIGINT', () => {
     batteryReader.stop()
     solarReader.stop()
+    starterReader?.stop()
     process.exit(0)
   })
 }
@@ -117,7 +139,12 @@ function logReaderDiag(name, d) {
   const stale = d.secondsSinceReading != null && d.secondsSinceReading > 30
 
   let msg
-  if (d.driver === 'ble' && 'connectAttempts' in d) {
+  if (d.driver === 'bm6') {
+    const conn = (d.connectedAt && !d.disconnectedAt)
+      ? 'connected'
+      : d.nobleState === 'poweredOn' ? `scanning (${d.devicesSeenInScan.length} devices seen)` : d.nobleState
+    msg = `[diag:${name}] BM6 ${conn} · ${age} · ok=${d.parseOk} err=${d.parseErrors}`
+  } else if (d.driver === 'ble' && 'connectAttempts' in d) {
     const conn = (d.connectedAt && !d.disconnectedAt)
       ? 'connected'
       : d.nobleState === 'poweredOn' ? `scanning (${d.devicesSeenInScan.length} devices seen)` : d.nobleState

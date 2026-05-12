@@ -5,6 +5,7 @@
     "packages/server",
     "packages/reader-battery",
     "packages/reader-solar",
+    "packages/reader-starter",
     "packages/ui-fb"
   ],
   "scripts": {

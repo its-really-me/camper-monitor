@@ -38,7 +38,8 @@ BATTERY_MAC=""
 if [[ "$BATTERY_DRIVER" == "ble" ]]; then
     ask "BLE MAC address  (e.g. AA:BB:CC:DD:EE:FF):"
     read -r BATTERY_MAC
-    if ! [[ "$BATTERY_MAC" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]; then
+    BATTERY_MAC="${BATTERY_MAC^^}"
+    if ! [[ "$BATTERY_MAC" =~ ^([0-9A-F]{2}:){5}[0-9A-F]{2}$ ]]; then
         echo "  Warning: '$BATTERY_MAC' doesn't look like a MAC address — continuing anyway."
     fi
 fi
@@ -63,6 +64,7 @@ case "$SOLAR_DRIVER" in
     ble)
         ask "SmartSolar BLE MAC address  (e.g. AA:BB:CC:DD:EE:FF):"
         read -r SOLAR_MAC
+        SOLAR_MAC="${SOLAR_MAC^^}"
         ask "Advertisement key  (32-char hex from VictronConnect → Product info):"
         read -r SOLAR_KEY
         if [[ ${#SOLAR_KEY} -ne 32 ]]; then
@@ -73,6 +75,35 @@ case "$SOLAR_DRIVER" in
         info "Mock driver selected — no hardware required."
         ;;
 esac
+
+# ── starter battery (optional) ───────────────────────────────────────────────
+header "Starter Battery  (intAct Battery-Guard / BM6) — optional"
+
+ask "Monitor starter battery? [y/N]:"
+read -r _starter
+STARTER_ENABLED=false
+STARTER_MAC=""
+STARTER_DRIVER=""
+
+if [[ "${_starter,,}" == "y" || "${_starter,,}" == "yes" ]]; then
+    STARTER_ENABLED=true
+    ask "Driver — bm6 or mock (default: bm6):"
+    read -r STARTER_DRIVER
+    STARTER_DRIVER="${STARTER_DRIVER:-bm6}"
+
+    if [[ "$STARTER_DRIVER" == "bm6" ]]; then
+        ask "BLE MAC address  (e.g. AA:BB:CC:DD:EE:FF):"
+        read -r STARTER_MAC
+        STARTER_MAC="${STARTER_MAC^^}"
+        if ! [[ "$STARTER_MAC" =~ ^([0-9A-F]{2}:){5}[0-9A-F]{2}$ ]]; then
+            echo "  Warning: '$STARTER_MAC' doesn't look like a MAC address — continuing anyway."
+        fi
+    else
+        info "Mock driver selected — no hardware required."
+    fi
+else
+    info "Starter battery monitoring skipped."
+fi
 
 # ── server port ──────────────────────────────────────────────────────────────
 header "Server"
@@ -85,6 +116,16 @@ SERVER_PORT="${SERVER_PORT:-3000}"
 header "Writing config files"
 
 info "settings.yaml..."
+STARTER_YAML=""
+if [[ "$STARTER_ENABLED" == "true" ]]; then
+    STARTER_YAML="
+  starter:
+    driver: $STARTER_DRIVER
+    macAddress: \"$STARTER_MAC\"
+    pollInterval: 5000
+"
+fi
+
 cat > "$INSTALL_DIR/settings.yaml" << EOF
 readers:
   battery:
@@ -98,7 +139,7 @@ readers:
     macAddress: "$SOLAR_MAC"
     advertisementKey: "$SOLAR_KEY"
     pollInterval: 2000
-
+$STARTER_YAML
 server:
   port: $SERVER_PORT
 EOF
@@ -257,7 +298,7 @@ EOF
 fi
 
 # ── bluetooth (when any BLE driver is selected) ──────────────────────────────
-if [[ "$BATTERY_DRIVER" == "ble" || "$SOLAR_DRIVER" == "ble" ]]; then
+if [[ "$BATTERY_DRIVER" == "ble" || "$SOLAR_DRIVER" == "ble" || "$STARTER_DRIVER" == "bm6" ]]; then
     header "Bluetooth"
 
     info "Setting AutoEnable=true in /etc/bluetooth/main.conf..."
@@ -286,6 +327,7 @@ header "Native modules"
 NATIVE_PKGS=()
 [[ "$BATTERY_DRIVER" == "ble" ]]      && NATIVE_PKGS+=(@abandonware/noble)
 [[ "$SOLAR_DRIVER"   == "ble" ]]      && NATIVE_PKGS+=(@abandonware/noble)
+[[ "$STARTER_DRIVER" == "bm6" ]]      && NATIVE_PKGS+=(@abandonware/noble)
 [[ "$SOLAR_DRIVER"   == "vedirect" ]] && NATIVE_PKGS+=(serialport)
 [[ "$ARCH"           == "armv6l" ]]   && NATIVE_PKGS+=(canvas)
 
@@ -305,10 +347,17 @@ else
     # Pure-JS packages are already in /tmp/npm-cache so this is fast.
     info "Clearing node_modules for clean install..."
     find "$INSTALL_DIR" -name node_modules -type d -prune -exec rm -rf {} +
+    if [[ "$ARCH" == "armv6l" ]]; then
+        # esbuild has no ARMv6 binary and crashes with SIGILL during its post-install check.
+        # It enters the lock file when npm install is run on a dev machine (hoisted from packages/ui).
+        # Deleting the lock file here forces a fresh resolution that excludes esbuild.
+        rm -f "$INSTALL_DIR/package-lock.json"
+    fi
     sudo -u "$REAL_USER" npm install \
         --workspace=packages/server \
         --workspace=packages/reader-battery \
         --workspace=packages/reader-solar \
+        --workspace=packages/reader-starter \
         --workspace=packages/ui-fb \
         --omit=optional --cache /tmp/npm-cache --loglevel=error
     if sudo -u "$REAL_USER" npm install --no-save --omit=optional "${NATIVE_PKGS[@]}" \

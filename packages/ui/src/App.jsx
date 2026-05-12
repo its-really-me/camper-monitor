@@ -11,7 +11,8 @@ function fmt(ts) {
 export default function App() {
   const { state, connected } = useLiveState()
 
-  const lastUpdate = state?.battery?.ts ?? state?.solar?.ts ?? null
+  const lastUpdate  = state?.battery?.ts ?? state?.solar?.ts ?? null
+  const hasStarter  = state != null && 'starter' in state
 
   return (
     <div className="h-screen overflow-hidden bg-slate-950 text-slate-100 flex flex-col">
@@ -31,19 +32,28 @@ export default function App() {
 
       {/* Main */}
       <main className="flex-1 flex flex-col gap-2 p-3 min-h-0">
-        {/* Cards row */}
-        <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
+        {/* Cards row — 3 columns when starter battery is configured */}
+        <div className={`grid ${hasStarter ? 'grid-cols-3' : 'grid-cols-2'} gap-3 flex-1 min-h-0`}>
           <BatteryCard
             battery={state?.battery ?? null}
             connected={state?.batteryConnected ?? false}
+            label="Body Battery"
           />
           <SolarCard
             solar={state?.solar ?? null}
             connected={state?.solarConnected ?? false}
           />
+          {hasStarter && (
+            <BatteryCard
+              battery={state.starter}
+              connected={state.starterConnected ?? false}
+              label="Starter Battery"
+              compact
+            />
+          )}
         </div>
 
-        {/* Power flow */}
+        {/* Power flow — body battery only */}
         <PowerFlow
           battery={state?.battery ?? null}
           solar={state?.solar   ?? null}

@@ -75,15 +75,15 @@ function statusBadge(status) {
   return map[status] ?? { label: status ?? '—', bg: 'bg-slate-700/60', text: 'text-slate-400' }
 }
 
-export function BatteryCard({ battery, connected }) {
+export function BatteryCard({ battery, connected, label = 'Body Battery', compact = false }) {
   const badge               = statusBadge(battery?.status)
   const { stale, ageSeconds } = useStale(battery?.ts)
 
   let overlayTitle = null
   let overlayDetail = null
-  if (!battery) {
+  if (!connected && !battery) {
     overlayTitle  = 'Scanning…'
-    overlayDetail = 'Looking for BMS device'
+    overlayDetail = 'Looking for device'
   } else if (!connected) {
     overlayTitle  = 'Disconnected'
     overlayDetail = ageSeconds != null ? `Last data ${fmtAge(ageSeconds)} ago` : null
@@ -98,7 +98,7 @@ export function BatteryCard({ battery, connected }) {
       {/* Header */}
       <div className="flex items-center gap-2 shrink-0">
         <Battery size={20} className="text-slate-200 shrink-0" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-100">Battery</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-100">{label}</span>
         <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${connected ? 'bg-emerald-900/60 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>
           {connected ? 'Live' : 'Offline'}
         </span>
@@ -109,14 +109,23 @@ export function BatteryCard({ battery, connected }) {
         <SocGauge soc={battery?.soc ?? null} />
 
         <div className="flex flex-col gap-3 flex-1">
-          <div className="grid grid-cols-2 gap-2">
-            <Stat label="Voltage"  value={battery ? `${battery.voltage} V`  : '—'} color="#94a3b8" />
-            <Stat label="Current"  value={battery ? `${battery.current > 0 ? '+' : ''}${battery.current} A` : '—'} color="#60a5fa" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Stat label="Power"    value={battery ? `${battery.power} W`    : '—'} color="#facc15" />
-            <Stat label="Temp"     value={battery?.temperature != null ? `${battery.temperature} °C` : '—'} color="#94a3b8" />
-          </div>
+          {compact ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Stat label="Voltage" value={battery ? `${battery.voltage} V` : '—'} color="#94a3b8" />
+              <Stat label="Temp"    value={battery?.temperature != null ? `${battery.temperature} °C` : '—'} color="#94a3b8" />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Stat label="Voltage" value={battery ? `${battery.voltage} V` : '—'} color="#94a3b8" />
+                <Stat label="Current" value={battery ? `${battery.current > 0 ? '+' : ''}${battery.current} A` : '—'} color="#60a5fa" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Stat label="Power"   value={battery ? `${battery.power} W` : '—'} color="#facc15" />
+                <Stat label="Temp"    value={battery?.temperature != null ? `${battery.temperature} °C` : '—'} color="#94a3b8" />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
