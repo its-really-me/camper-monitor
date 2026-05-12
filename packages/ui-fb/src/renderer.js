@@ -153,7 +153,8 @@ function overlayMessage(connected, lastTs) {
     const s = Math.round((Date.now() - lastTs) / 1000)
     return { title: 'Disconnected', detail: `Last data ${fmtAge(s)} ago` }
   }
-  if (lastTs && Date.now() - lastTs > 30_000) {
+  if (!lastTs) return { title: 'No data yet', detail: 'Connected · waiting for readings' }
+  if (Date.now() - lastTs > 30_000) {
     const s = Math.round((Date.now() - lastTs) / 1000)
     return { title: 'No data', detail: `${fmtAge(s)} since last reading` }
   }

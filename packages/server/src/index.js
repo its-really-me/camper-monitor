@@ -87,6 +87,12 @@ function startNormalServer() {
   batteryReader.start()
   solarReader.start()
 
+  // Initial snapshot after 10s — catches startup failures before the 60s interval fires
+  setTimeout(() => {
+    logReaderDiag('battery', batteryReader.diagnostics())
+    logReaderDiag('solar',   solarReader.diagnostics())
+  }, 10_000)
+
   setInterval(() => {
     logReaderDiag('battery', batteryReader.diagnostics())
     logReaderDiag('solar',   solarReader.diagnostics())
