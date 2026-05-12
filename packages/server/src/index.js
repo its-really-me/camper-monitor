@@ -8,7 +8,6 @@ const yaml = require('js-yaml')
 
 const { createReader: createBatteryReader } = require('@camper-monitor/reader-battery')
 const { createReader: createSolarReader }   = require('@camper-monitor/reader-solar')
-const { createReader: createStarterReader } = require('@camper-monitor/reader-starter')
 const { createApi }                         = require('./api')
 
 const SETTINGS_PATH = path.resolve(__dirname, '../../../settings.yaml')
@@ -93,7 +92,9 @@ function startNormalServer() {
 
   const batteryReader = createBatteryReader(cfg.readers.battery)
   const solarReader   = createSolarReader(cfg.readers.solar)
-  const starterReader = hasStarter ? createStarterReader(cfg.readers.starter) : null
+  const starterReader = hasStarter
+    ? require('@camper-monitor/reader-starter').createReader(cfg.readers.starter)
+    : null
 
   wire(batteryReader, 'battery', 'batteryConnected')
   wire(solarReader,   'solar',   'solarConnected')

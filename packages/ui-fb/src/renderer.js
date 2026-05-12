@@ -148,7 +148,7 @@ function cardOverlay(ctx, title, detail, x, y, w, h) {
 }
 
 function overlayMessage(connected, lastTs) {
-  if (!lastTs) return { title: 'Scanning…', detail: null }
+  if (!connected && !lastTs) return { title: 'Scanning…', detail: null }
   if (!connected) {
     const s = Math.round((Date.now() - lastTs) / 1000)
     return { title: 'Disconnected', detail: `Last data ${fmtAge(s)} ago` }
