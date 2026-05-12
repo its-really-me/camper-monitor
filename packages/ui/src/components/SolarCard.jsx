@@ -38,15 +38,12 @@ export function SolarCard({ solar, connected }) {
 
   let overlayTitle = null
   let overlayDetail = null
-  if (!connected && !solar) {
+  if (!solar) {
     overlayTitle  = 'Scanning…'
     overlayDetail = 'Looking for solar charger'
   } else if (!connected) {
     overlayTitle  = 'Disconnected'
     overlayDetail = ageSeconds != null ? `Last data ${fmtAge(ageSeconds)} ago` : null
-  } else if (!solar) {
-    overlayTitle  = 'No data yet'
-    overlayDetail = 'Connected · waiting for first reading'
   } else if (stale) {
     overlayTitle  = 'No data'
     overlayDetail = `${fmtAge(ageSeconds)} since last reading`

@@ -256,6 +256,30 @@ EOF
 
 fi
 
+# ── bluetooth (when any BLE driver is selected) ──────────────────────────────
+if [[ "$BATTERY_DRIVER" == "ble" || "$SOLAR_DRIVER" == "ble" ]]; then
+    header "Bluetooth"
+
+    info "Setting AutoEnable=true in /etc/bluetooth/main.conf..."
+    BT_CONF=/etc/bluetooth/main.conf
+    if grep -q '^#\s*AutoEnable' "$BT_CONF" 2>/dev/null; then
+        sed -i 's/^#\s*AutoEnable=.*/AutoEnable=true/' "$BT_CONF"
+    elif grep -q '^AutoEnable' "$BT_CONF" 2>/dev/null; then
+        sed -i 's/^AutoEnable=.*/AutoEnable=true/' "$BT_CONF"
+    else
+        echo 'AutoEnable=true' >> "$BT_CONF"
+    fi
+    success "AutoEnable=true"
+
+    info "Unblocking Bluetooth via rfkill..."
+    rfkill unblock bluetooth
+    success "Bluetooth unblocked"
+
+    info "Restarting bluetooth service..."
+    systemctl restart bluetooth
+    success "Bluetooth restarted"
+fi
+
 # ── install native modules for chosen drivers ────────────────────────────────
 header "Native modules"
 

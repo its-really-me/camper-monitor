@@ -348,6 +348,71 @@ dmesg | grep tty
 
 ---
 
+## Troubleshooting
+
+### Data not showing on the display
+
+Cards show a status overlay — **Scanning…**, **Disconnected**, or **No data** — when readings are unavailable. To dig deeper over SSH:
+
+```sh
+# Live server logs — connection events + 60-second diagnostic summaries
+journalctl -u camper-monitor -f
+
+# Full diagnostic snapshot for both readers
+curl -s localhost:3000/diagnostics | python3 -m json.tool
+```
+
+### BLE not connecting (`nobleState: poweredOff`)
+
+The Bluetooth adapter exists but is not powered on.
+
+```sh
+# Check adapter state
+hciconfig
+
+# Unblock and bring up manually
+sudo rfkill unblock bluetooth
+sudo hciconfig hci0 up
+
+# Permanent fix — should be set by configure.sh, but if missing:
+sudo sed -i 's/#AutoEnable=true/AutoEnable=true/' /etc/bluetooth/main.conf
+sudo systemctl restart bluetooth
+```
+
+### BLE scanning but device not found
+
+Check what addresses are actually visible during the scan:
+
+```sh
+# Devices seen by the battery reader
+curl -s localhost:3000/diagnostics | python3 -c \
+  "import sys,json; [print(x) for x in json.load(sys.stdin)['battery']['devicesSeenInScan']]"
+
+# Devices seen by the solar reader
+curl -s localhost:3000/diagnostics | python3 -c \
+  "import sys,json; [print(x) for x in json.load(sys.stdin)['solar']['recentDevices']]"
+```
+
+If the target device appears but with a different MAC than configured, re-run `sudo bash scripts/configure.sh` to update `settings.yaml`.
+
+### Solar BLE — no Victron advertisements (`victron=0`)
+
+`adv=N victron=0` means N advertisements were received but none matched the Victron company ID. Causes:
+
+- Solar charger is off or out of BLE range (~10 m)
+- Wrong MAC configured — run the scan check above
+- `adv=0` — BLE adapter not scanning (check `nobleState` first)
+
+### Service restart not reliable
+
+A full reboot is more reliable than `systemctl restart` when the BLE stack is involved:
+
+```sh
+sudo reboot
+```
+
+---
+
 ## Configuration reference
 
 | Setting | Where | Description |
