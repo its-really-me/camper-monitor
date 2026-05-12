@@ -1,4 +1,6 @@
 import { Battery } from 'lucide-react'
+import { useStale, fmtAge } from '../hooks/useStale'
+import { CardOverlay }      from './CardOverlay'
 
 const R = 54
 const C = 2 * Math.PI * R          // full circumference ≈ 339.3
@@ -74,10 +76,25 @@ function statusBadge(status) {
 }
 
 export function BatteryCard({ battery, connected }) {
-  const badge = statusBadge(battery?.status)
+  const badge               = statusBadge(battery?.status)
+  const { stale, ageSeconds } = useStale(battery?.ts)
+
+  let overlayTitle = null
+  let overlayDetail = null
+  if (!connected && !battery) {
+    overlayTitle  = 'Scanning…'
+    overlayDetail = 'Looking for BMS device'
+  } else if (!connected) {
+    overlayTitle  = 'Disconnected'
+    overlayDetail = ageSeconds != null ? `Last data ${fmtAge(ageSeconds)} ago` : null
+  } else if (stale) {
+    overlayTitle  = 'No data'
+    overlayDetail = `${fmtAge(ageSeconds)} since last reading`
+  }
 
   return (
-    <div className="rounded-xl p-3 bg-slate-800/60 border border-slate-700 flex flex-col gap-2 h-full">
+    <div className="relative rounded-xl p-3 bg-slate-800/60 border border-slate-700 flex flex-col gap-2 h-full">
+      <CardOverlay title={overlayTitle} detail={overlayDetail} />
       {/* Header */}
       <div className="flex items-center gap-2 shrink-0">
         <Battery size={20} className="text-slate-200 shrink-0" />

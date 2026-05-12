@@ -1,4 +1,6 @@
 import { Sun } from 'lucide-react'
+import { useStale, fmtAge } from '../hooks/useStale'
+import { CardOverlay }      from './CardOverlay'
 
 function Stat({ label, value, color }) {
   return (
@@ -31,10 +33,25 @@ function fmtA(a) { return a != null ? `${a} A` : '—' }
 function fmtW(w) { return w != null ? `${w} W` : '—' }
 
 export function SolarCard({ solar, connected }) {
-  const badge = modeBadge(solar?.mode)
+  const badge               = modeBadge(solar?.mode)
+  const { stale, ageSeconds } = useStale(solar?.ts)
+
+  let overlayTitle = null
+  let overlayDetail = null
+  if (!connected && !solar) {
+    overlayTitle  = 'Scanning…'
+    overlayDetail = 'Looking for solar charger'
+  } else if (!connected) {
+    overlayTitle  = 'Disconnected'
+    overlayDetail = ageSeconds != null ? `Last data ${fmtAge(ageSeconds)} ago` : null
+  } else if (stale) {
+    overlayTitle  = 'No data'
+    overlayDetail = `${fmtAge(ageSeconds)} since last reading`
+  }
 
   return (
-    <div className="rounded-xl p-3 bg-slate-800/60 border border-slate-700 flex flex-col gap-2 h-full">
+    <div className="relative rounded-xl p-3 bg-slate-800/60 border border-slate-700 flex flex-col gap-2 h-full">
+      <CardOverlay title={overlayTitle} detail={overlayDetail} />
       {/* Header */}
       <div className="flex items-center gap-2 shrink-0">
         <Sun size={20} className="text-slate-200 shrink-0" />

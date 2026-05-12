@@ -60,16 +60,51 @@ function createBleReader(config) {
   let noble    = null
   let running  = false
 
+  const diag = {
+    nobleState:          'unknown',
+    scanStartedAt:       null,
+    advertisementsTotal: 0,
+    macFilterPassed:     0,
+    victronIdPassed:     0,
+    solarChargerPassed:  0,
+    decryptErrors:       0,
+    parseErrors:         0,
+    readingsTotal:       0,
+    lastReadingAt:       null,
+    lastReading:         null,
+    // last 10 unique addresses seen (for spotting the target in scan)
+    recentDevices:       [],
+  }
+
+  function noteDevice(peripheral) {
+    const addr = (peripheral.address ?? 'unknown').toLowerCase()
+    const name = peripheral.advertisement?.localName ?? ''
+    const existing = diag.recentDevices.find(d => d.address === addr)
+    if (existing) {
+      existing.ts = Date.now()
+    } else {
+      diag.recentDevices.push({ address: addr, name, ts: Date.now() })
+      if (diag.recentDevices.length > 10) diag.recentDevices.shift()
+    }
+  }
+
   function onDiscover(peripheral) {
+    diag.advertisementsTotal++
+    noteDevice(peripheral)
+
     const addr = (peripheral.address ?? '').toLowerCase().replace(/:/g, '')
     if (mac && addr !== mac) return
+    diag.macFilterPassed++
 
     const mfr = peripheral.advertisement?.manufacturerData
     if (!mfr || mfr.length < 7) return
 
     const companyId = mfr.readUInt16LE(0)
     if (companyId !== VICTRON_COMPANY_ID) return
+    diag.victronIdPassed++
+
     if (mfr[2] !== RECORD_TYPE_SOLAR_CHARGER) return
+    diag.solarChargerPassed++
 
     if (!keyHex || keyHex.length !== 32) {
       events.emit('error', new Error('Victron advertisement key missing or invalid (must be 32 hex chars)'))
@@ -81,8 +116,16 @@ function createBleReader(config) {
     try {
       const decrypted = decryptPayload(encrypted, keyHex, iv)
       const reading   = parseSolarCharger(decrypted)
-      if (reading) events.emit('data', reading)
+      if (reading) {
+        diag.readingsTotal++
+        diag.lastReadingAt = Date.now()
+        diag.lastReading   = reading
+        events.emit('data', reading)
+      } else {
+        diag.parseErrors++
+      }
     } catch (e) {
+      diag.decryptErrors++
       events.emit('error', e)
     }
   }
@@ -106,7 +149,9 @@ function createBleReader(config) {
       if (!nobleReady) {
         nobleReady = true
         noble.on('stateChange', state => {
+          diag.nobleState = state
           if (state === 'poweredOn') {
+            diag.scanStartedAt = Date.now()
             events.emit('connected')
             noble.startScanning([], true)   // allow duplicates for continuous updates
           }
@@ -114,6 +159,8 @@ function createBleReader(config) {
         noble.on('discover', onDiscover)
       }
       if (noble.state === 'poweredOn') {
+        diag.nobleState    = noble.state
+        diag.scanStartedAt = Date.now()
         events.emit('connected')
         noble.startScanning([], true)
       }
@@ -122,6 +169,26 @@ function createBleReader(config) {
       running = false
       noble?.stopScanning()
       events.emit('disconnected')
+    },
+    diagnostics() {
+      return {
+        driver:              'ble',
+        nobleState:          diag.nobleState,
+        targetMac:           mac || '(any Victron)',
+        keyConfigured:       keyHex.length === 32,
+        scanStartedAt:       diag.scanStartedAt,
+        recentDevices:       diag.recentDevices,
+        advertisementsTotal: diag.advertisementsTotal,
+        macFilterPassed:     diag.macFilterPassed,
+        victronIdPassed:     diag.victronIdPassed,
+        solarChargerPassed:  diag.solarChargerPassed,
+        decryptErrors:       diag.decryptErrors,
+        parseErrors:         diag.parseErrors,
+        readingsTotal:       diag.readingsTotal,
+        lastReadingAt:       diag.lastReadingAt,
+        lastReading:         diag.lastReading,
+        secondsSinceReading: diag.lastReadingAt ? +((Date.now() - diag.lastReadingAt) / 1000).toFixed(1) : null,
+      }
     },
     events,
   }

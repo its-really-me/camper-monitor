@@ -34,6 +34,12 @@ function createMockReader(config) {
     })
   }
 
+  let lastReading   = null
+  let lastReadingAt = null
+  let readingsTotal = 0
+
+  events.on('data', r => { lastReading = r; lastReadingAt = Date.now(); readingsTotal++ })
+
   return {
     start() {
       events.emit('connected')
@@ -43,6 +49,15 @@ function createMockReader(config) {
     stop() {
       clearInterval(timer)
       events.emit('disconnected')
+    },
+    diagnostics() {
+      return {
+        driver:              'mock',
+        readingsTotal,
+        lastReadingAt,
+        lastReading,
+        secondsSinceReading: lastReadingAt ? +((Date.now() - lastReadingAt) / 1000).toFixed(1) : null,
+      }
     },
     events,
   }

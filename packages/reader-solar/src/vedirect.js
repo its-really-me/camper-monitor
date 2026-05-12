@@ -51,6 +51,19 @@ function createVeDirectReader(config) {
   let port     = null
   let rawBuf   = Buffer.alloc(0)
 
+  const diag = {
+    portPath:        config.port ?? process.env.SOLAR_PORT ?? '/dev/ttyUSB0',
+    connectedAt:     null,
+    disconnectedAt:  null,
+    rxBytesTotal:    0,
+    blocksTotal:     0,
+    parseErrors:     0,
+    checksumErrors:  0,
+    readingsTotal:   0,
+    lastReadingAt:   null,
+    lastReading:     null,
+  }
+
   function processBuffer() {
     let pos = 0
     while (pos < rawBuf.length) {
@@ -65,6 +78,7 @@ function createVeDirectReader(config) {
       const sum   = block.reduce((a, b) => a + b, 0) & 0xFF
 
       if (sum === 0) {
+        diag.blocksTotal++
         // Valid block — parse text section (everything before "Checksum\t")
         const text   = rawBuf.slice(pos, idx).toString('latin1')
         const fields = {}
@@ -73,9 +87,19 @@ function createVeDirectReader(config) {
           if (tab > 0) fields[line.slice(0, tab)] = line.slice(tab + 1)
         }
         if (Object.keys(fields).length >= 3) {
-          try { events.emit('data', parseBlock(fields)) }
-          catch (e) { events.emit('error', e) }
+          try {
+            const reading = parseBlock(fields)
+            diag.readingsTotal++
+            diag.lastReadingAt = Date.now()
+            diag.lastReading   = reading
+            events.emit('data', reading)
+          } catch (e) {
+            diag.parseErrors++
+            events.emit('error', e)
+          }
         }
+      } else {
+        diag.checksumErrors++
       }
 
       pos = csPos + 1
@@ -93,19 +117,36 @@ function createVeDirectReader(config) {
       catch { throw new Error('VE.Direct driver requires serialport — run: npm install serialport') }
 
       port = new SerialPort({
-        path:     config.port ?? process.env.SOLAR_PORT ?? '/dev/ttyUSB0',
+        path:     diag.portPath,
         baudRate: 19200,
         dataBits: 8,
         parity:   'none',
         stopBits: 1,
       })
-      port.on('open',  ()    => events.emit('connected'))
+      port.on('open',  ()    => { diag.connectedAt = Date.now(); diag.disconnectedAt = null; events.emit('connected') })
       port.on('error', err   => events.emit('error', err))
-      port.on('close', ()    => events.emit('disconnected'))
-      port.on('data',  chunk => { rawBuf = Buffer.concat([rawBuf, chunk]); processBuffer() })
+      port.on('close', ()    => { diag.disconnectedAt = Date.now(); events.emit('disconnected') })
+      port.on('data',  chunk => { diag.rxBytesTotal += chunk.length; rawBuf = Buffer.concat([rawBuf, chunk]); processBuffer() })
     },
     stop() {
       if (port?.isOpen) port.close()
+    },
+    diagnostics() {
+      return {
+        driver:              'vedirect',
+        portPath:            diag.portPath,
+        portOpen:            port?.isOpen ?? false,
+        connectedAt:         diag.connectedAt,
+        disconnectedAt:      diag.disconnectedAt,
+        rxBytesTotal:        diag.rxBytesTotal,
+        blocksTotal:         diag.blocksTotal,
+        checksumErrors:      diag.checksumErrors,
+        parseErrors:         diag.parseErrors,
+        readingsTotal:       diag.readingsTotal,
+        lastReadingAt:       diag.lastReadingAt,
+        lastReading:         diag.lastReading,
+        secondsSinceReading: diag.lastReadingAt ? +((Date.now() - diag.lastReadingAt) / 1000).toFixed(1) : null,
+      }
     },
     events,
   }

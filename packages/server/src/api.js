@@ -123,7 +123,7 @@ function setupPageHtml() {
 
 // ── api factory ──────────────────────────────────────────────────────────────
 
-function createApi(state, { setupMode = false, settingsPath } = {}) {
+function createApi(state, { setupMode = false, settingsPath, getDiagnostics } = {}) {
   const app     = express()
   const clients = new Set()
 
@@ -188,6 +188,11 @@ function createApi(state, { setupMode = false, settingsPath } = {}) {
   })
 
   app.get('/state', (_req, res) => res.json(state.toJSON()))
+
+  app.get('/diagnostics', (_req, res) => {
+    const d = getDiagnostics ? getDiagnostics() : {}
+    res.json({ ts: Date.now(), battery: d.battery ?? null, solar: d.solar ?? null })
+  })
 
   // Allow re-accessing setup at any time
   app.get('/setup', (_req, res) => res.send(setupPageHtml()))

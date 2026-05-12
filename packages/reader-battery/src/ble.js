@@ -60,28 +60,70 @@ function createBleReader(config) {
   let running      = false
   let nobleReady   = false
 
+  const diag = {
+    nobleState:           'unknown',
+    scanStartedAt:        null,
+    devicesSeenInScan:    [],   // ring buffer, last 10 unique addresses
+    lastMatchAt:          null,
+    connectAttempts:      0,
+    connectedAt:          null,
+    disconnectedAt:       null,
+    reconnectScheduledAt: null,
+    lastPollAt:           null,
+    lastRxAt:             null,
+    rxBytesTotal:         0,
+    parseOk:              0,
+    parseErrors:          0,
+    lastReadingAt:        null,
+    lastReading:          null,
+  }
+
+  function noteDevice(p) {
+    const addr = (p.address ?? 'unknown').toLowerCase()
+    const name = p.advertisement?.localName ?? ''
+    const existing = diag.devicesSeenInScan.find(d => d.address === addr)
+    if (existing) {
+      existing.ts = Date.now()
+    } else {
+      diag.devicesSeenInScan.push({ address: addr, name, ts: Date.now() })
+      if (diag.devicesSeenInScan.length > 10) diag.devicesSeenInScan.shift()
+    }
+  }
+
   function matchDevice(p) {
+    noteDevice(p)
     if (mac && p.address.toLowerCase().replace(/:/g, '') === mac.replace(/:/g, '')) return true
     const name = p.advertisement?.localName ?? ''
     return name.toLowerCase().includes('jbd') || name.toLowerCase().includes('bms')
   }
 
   function poll() {
+    diag.lastPollAt = Date.now()
     writeChar?.write(BASIC_INFO, false, err => {
       if (err) events.emit('error', new Error(`BMS write: ${err.message}`))
     })
   }
 
   function onData(chunk) {
+    diag.lastRxAt = Date.now()
+    diag.rxBytesTotal += chunk.length
     rxBuf = Buffer.concat([rxBuf, chunk])
     if (rxBuf.length > 4 && rxBuf[rxBuf.length - 1] === 0x77) {
       const reading = parseResponse(rxBuf)
       rxBuf = Buffer.alloc(0)
-      if (reading) events.emit('data', reading)
+      if (reading) {
+        diag.parseOk++
+        diag.lastReadingAt = Date.now()
+        diag.lastReading   = reading
+        events.emit('data', reading)
+      } else {
+        diag.parseErrors++
+      }
     }
   }
 
   function connect(p) {
+    diag.connectAttempts++
     peripheral = p
     p.connect(err => {
       if (err) return scheduleReconnect()
@@ -93,6 +135,8 @@ function createBleReader(config) {
           const nc = chars.find(c => c.uuid === NOTIFY_UUID)
           if (!wc || !nc) return scheduleReconnect()
           writeChar = wc
+          diag.connectedAt    = Date.now()
+          diag.disconnectedAt = null
           nc.subscribe()
           nc.on('data', onData)
           events.emit('connected')
@@ -102,6 +146,7 @@ function createBleReader(config) {
       })
     })
     p.on('disconnect', () => {
+      diag.disconnectedAt = Date.now()
       events.emit('disconnected')
       clearInterval(pollTimer)
       writeChar = null
@@ -110,6 +155,7 @@ function createBleReader(config) {
   }
 
   function scheduleReconnect() {
+    diag.reconnectScheduledAt = Date.now()
     reconnTimer = setTimeout(() => {
       if (running) noble.startScanning([], false)
     }, 5000)
@@ -132,21 +178,52 @@ function createBleReader(config) {
       if (!nobleReady) {
         nobleReady = true
         noble.on('stateChange', state => {
-          if (state === 'poweredOn') noble.startScanning([], false)
+          diag.nobleState = state
+          if (state === 'poweredOn') {
+            diag.scanStartedAt = Date.now()
+            noble.startScanning([], false)
+          }
         })
         noble.on('discover', p => {
           if (!matchDevice(p)) return
+          diag.lastMatchAt = Date.now()
           noble.stopScanning()
           connect(p)
         })
       }
-      if (noble.state === 'poweredOn') noble.startScanning([], false)
+      if (noble.state === 'poweredOn') {
+        diag.nobleState    = noble.state
+        diag.scanStartedAt = Date.now()
+        noble.startScanning([], false)
+      }
     },
     stop() {
       running = false
       clearInterval(pollTimer)
       clearTimeout(reconnTimer)
       peripheral?.disconnect()
+    },
+    diagnostics() {
+      return {
+        driver:               'ble',
+        nobleState:           diag.nobleState,
+        targetMac:            mac || '(any JBD/BMS)',
+        scanStartedAt:        diag.scanStartedAt,
+        devicesSeenInScan:    diag.devicesSeenInScan,
+        lastMatchAt:          diag.lastMatchAt,
+        connectAttempts:      diag.connectAttempts,
+        connectedAt:          diag.connectedAt,
+        disconnectedAt:       diag.disconnectedAt,
+        reconnectScheduledAt: diag.reconnectScheduledAt,
+        lastPollAt:           diag.lastPollAt,
+        lastRxAt:             diag.lastRxAt,
+        rxBytesTotal:         diag.rxBytesTotal,
+        parseOk:              diag.parseOk,
+        parseErrors:          diag.parseErrors,
+        lastReadingAt:        diag.lastReadingAt,
+        lastReading:          diag.lastReading,
+        secondsSinceReading:  diag.lastReadingAt ? +((Date.now() - diag.lastReadingAt) / 1000).toFixed(1) : null,
+      }
     },
     events,
   }

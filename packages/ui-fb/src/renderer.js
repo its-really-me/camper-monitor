@@ -127,6 +127,39 @@ function drawGauge(ctx, cx, cy, soc) {
   })
 }
 
+// ── card overlay ─────────────────────────────────────────────────────────────
+
+function fmtAge(s) {
+  if (s < 60)   return `${s}s`
+  if (s < 3600) return `${Math.round(s / 60)}min`
+  return `${Math.round(s / 3600)}h`
+}
+
+function cardOverlay(ctx, title, detail, x, y, w, h) {
+  roundRect(ctx, x, y, w, h)
+  ctx.fillStyle = 'rgba(2,8,23,0.82)'
+  ctx.fill()
+  const cy = y + h / 2
+  label(ctx, '⚠', x + w / 2, cy - 22, { size: 18, color: C.amber, align: 'center' })
+  label(ctx, title,  x + w / 2, cy + 2,  { size: 16, bold: true, color: C.textPri, align: 'center' })
+  if (detail) {
+    label(ctx, detail, x + w / 2, cy + 22, { size: 12, color: C.textSec, align: 'center' })
+  }
+}
+
+function overlayMessage(connected, lastTs) {
+  if (!connected && !lastTs) return { title: 'Scanning…', detail: null }
+  if (!connected) {
+    const s = Math.round((Date.now() - lastTs) / 1000)
+    return { title: 'Disconnected', detail: `Last data ${fmtAge(s)} ago` }
+  }
+  if (lastTs && Date.now() - lastTs > 30_000) {
+    const s = Math.round((Date.now() - lastTs) / 1000)
+    return { title: 'No data', detail: `${fmtAge(s)} since last reading` }
+  }
+  return null
+}
+
 // ── battery card ─────────────────────────────────────────────────────────────
 
 const STATUS_BADGE = {
@@ -135,27 +168,27 @@ const STATUS_BADGE = {
   idle:        { bg: 'rgba(30,41,59,0.85)',fg: C.textSec, text: 'IDLE'        },
 }
 
-function drawBatteryCard(ctx, battery, x, y, w, h) {
+function drawBatteryCard(ctx, battery, connected, x, y, w, h) {
   card(ctx, x, y, w, h)
   label(ctx, 'BATTERY', x + 16, y + 20, { size: 11, bold: true })
 
-  if (!battery) {
-    label(ctx, 'Waiting for data…', x + w / 2, y + h / 2, { size: 16, color: C.textMut, align: 'center' })
-    return
+  if (battery) {
+    drawGauge(ctx, x + 108, y + h / 2, battery.soc)
+
+    const sx = x + 210
+    const sy = y + 70
+
+    stat(ctx, 'Voltage',  battery.voltage  != null ? `${battery.voltage} V`  : null, sx,       sy,       C.textSec)
+    stat(ctx, 'Current',  battery.current  != null ? `${battery.current > 0 ? '+' : ''}${battery.current} A` : null, sx + 130, sy,       C.current)
+    stat(ctx, 'Power',    battery.power    != null ? `${battery.power} W`    : null, sx,       sy + 75,  C.solar)
+    stat(ctx, 'Temp',     battery.temperature != null ? `${battery.temperature} °C` : null, sx + 130, sy + 75,  C.textSec)
+
+    const b = STATUS_BADGE[battery.status] ?? STATUS_BADGE.idle
+    badge(ctx, b.text, x + 16, y + h - 20, b.bg, b.fg)
   }
 
-  drawGauge(ctx, x + 108, y + h / 2, battery.soc)
-
-  const sx = x + 210
-  const sy = y + 70
-
-  stat(ctx, 'Voltage',  battery.voltage  != null ? `${battery.voltage} V`  : null, sx,       sy,       C.textSec)
-  stat(ctx, 'Current',  battery.current  != null ? `${battery.current > 0 ? '+' : ''}${battery.current} A` : null, sx + 130, sy,       C.current)
-  stat(ctx, 'Power',    battery.power    != null ? `${battery.power} W`    : null, sx,       sy + 75,  C.solar)
-  stat(ctx, 'Temp',     battery.temperature != null ? `${battery.temperature} °C` : null, sx + 130, sy + 75,  C.textSec)
-
-  const b = STATUS_BADGE[battery.status] ?? STATUS_BADGE.idle
-  badge(ctx, b.text, x + 16, y + h - 20, b.bg, b.fg)
+  const ov = overlayMessage(connected, battery?.ts ?? null)
+  if (ov) cardOverlay(ctx, ov.title, ov.detail, x, y, w, h)
 }
 
 // ── solar card ───────────────────────────────────────────────────────────────
@@ -171,36 +204,36 @@ const MODE_BADGE = {
   'Fault':       { bg: 'rgba(78,6,6,0.85)',   fg: C.red     },
 }
 
-function drawSolarCard(ctx, solar, x, y, w, h) {
+function drawSolarCard(ctx, solar, connected, x, y, w, h) {
   card(ctx, x, y, w, h)
   label(ctx, 'SOLAR CHARGER', x + 16, y + 20, { size: 11, bold: true })
 
-  if (!solar) {
-    label(ctx, 'Waiting for data…', x + w / 2, y + h / 2, { size: 16, color: C.textMut, align: 'center' })
-    return
+  if (solar) {
+    label(ctx, 'PV INPUT', x + 16, y + 48, { size: 10, bold: true, color: '#475569' })
+
+    stat(ctx, 'Voltage', solar.pvVoltage != null ? `${solar.pvVoltage} V` : null, x + 16,  y + 75,  C.solar)
+    stat(ctx, 'Current', solar.pvCurrent != null ? `${solar.pvCurrent} A` : null, x + 145, y + 75,  C.solar)
+    stat(ctx, 'Power',   solar.pvPower   != null ? `${solar.pvPower} W`   : null, x + 275, y + 75,  C.solar)
+
+    ctx.beginPath()
+    ctx.moveTo(x + 16, y + 148)
+    ctx.lineTo(x + w - 16, y + 148)
+    ctx.strokeStyle = C.border
+    ctx.lineWidth = 1
+    ctx.stroke()
+
+    label(ctx, 'BATTERY SIDE', x + 16, y + 162, { size: 10, bold: true, color: '#475569' })
+
+    stat(ctx, 'Current',     solar.batteryCurrent != null ? `${solar.batteryCurrent} A`   : null, x + 16,  y + 189, C.current)
+    stat(ctx, 'Voltage',     solar.batteryVoltage != null ? `${solar.batteryVoltage} V`   : null, x + 145, y + 189, C.textSec)
+    stat(ctx, 'Yield today', solar.yieldToday     != null ? `${solar.yieldToday} kWh`     : null, x + 275, y + 189, C.battery)
+
+    const mb = MODE_BADGE[solar.mode] ?? { bg: 'rgba(30,41,59,0.85)', fg: C.textSec }
+    badge(ctx, solar.mode ?? '—', x + 16, y + h - 20, mb.bg, mb.fg)
   }
 
-  label(ctx, 'PV INPUT', x + 16, y + 48, { size: 10, bold: true, color: '#475569' })
-
-  stat(ctx, 'Voltage', solar.pvVoltage != null ? `${solar.pvVoltage} V` : null, x + 16,  y + 75,  C.solar)
-  stat(ctx, 'Current', solar.pvCurrent != null ? `${solar.pvCurrent} A` : null, x + 145, y + 75,  C.solar)
-  stat(ctx, 'Power',   solar.pvPower   != null ? `${solar.pvPower} W`   : null, x + 275, y + 75,  C.solar)
-
-  ctx.beginPath()
-  ctx.moveTo(x + 16, y + 148)
-  ctx.lineTo(x + w - 16, y + 148)
-  ctx.strokeStyle = C.border
-  ctx.lineWidth = 1
-  ctx.stroke()
-
-  label(ctx, 'BATTERY SIDE', x + 16, y + 162, { size: 10, bold: true, color: '#475569' })
-
-  stat(ctx, 'Current',     solar.batteryCurrent != null ? `${solar.batteryCurrent} A`   : null, x + 16,  y + 189, C.current)
-  stat(ctx, 'Voltage',     solar.batteryVoltage != null ? `${solar.batteryVoltage} V`   : null, x + 145, y + 189, C.textSec)
-  stat(ctx, 'Yield today', solar.yieldToday     != null ? `${solar.yieldToday} kWh`     : null, x + 275, y + 189, C.battery)
-
-  const mb = MODE_BADGE[solar.mode] ?? { bg: 'rgba(30,41,59,0.85)', fg: C.textSec }
-  badge(ctx, solar.mode ?? '—', x + 16, y + h - 20, mb.bg, mb.fg)
+  const ov = overlayMessage(connected, solar?.ts ?? null)
+  if (ov) cardOverlay(ctx, ov.title, ov.detail, x, y, w, h)
 }
 
 // ── power flow ───────────────────────────────────────────────────────────────
@@ -277,8 +310,8 @@ function render(ctx, W, H, state, connected) {
   const CARDH  = 295
   const cardW  = (W - M * 3) / 2
 
-  drawBatteryCard(ctx, state?.battery ?? null, M,             TOP, cardW, CARDH)
-  drawSolarCard(  ctx, state?.solar   ?? null, M * 2 + cardW, TOP, cardW, CARDH)
+  drawBatteryCard(ctx, state?.battery ?? null, state?.batteryConnected ?? false, M,             TOP, cardW, CARDH)
+  drawSolarCard(  ctx, state?.solar   ?? null, state?.solarConnected   ?? false, M * 2 + cardW, TOP, cardW, CARDH)
   drawPowerFlow(  ctx, state?.battery ?? null, state?.solar ?? null,
                   M, TOP + CARDH + M, W - M * 2, 175)
 }
