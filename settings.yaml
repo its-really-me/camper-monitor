@@ -13,5 +13,10 @@ readers:
     advertisementKey: ""              # 32-char hex from VictronConnect → device → info → advertisement key
     pollInterval: 2000                # ms (mock / ble only — VE.Direct sends ~1 s naturally)
 
+  starter:
+    driver: mock
+    macAddress: ""
+    pollInterval: 5000
+
 server:
   port: 3000
