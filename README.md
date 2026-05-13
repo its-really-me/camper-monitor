@@ -420,6 +420,19 @@ A full reboot is more reliable than `systemctl restart` when the BLE stack is in
 sudo reboot
 ```
 
+### Deploying updates
+
+After pulling new code, rsync it to the install directory and restart both services. On the Pi Zero 2 W, the kiosk must be restarted too — Firefox holds the old JS bundle in memory until the page reloads, and restarting `camper-monitor` alone does not trigger a reload:
+
+```sh
+cd ~/camper-monitor && git pull && \
+  sudo rsync -a --exclude=node_modules --exclude=settings.yaml \
+    ~/camper-monitor/ /opt/camper-monitor/ && \
+  sudo systemctl restart camper-monitor kiosk
+```
+
+On the Pi Zero W (framebuffer renderer), replace `kiosk` with `ui-fb`.
+
 ---
 
 ## Configuration reference
