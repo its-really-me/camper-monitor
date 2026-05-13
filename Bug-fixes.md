@@ -167,27 +167,22 @@ hci0 type 7 discovering on
 hci0 type 7 discovering off
 ```
 
-### bug-5 order in config script -, Priority medium
+## Bug-5 — Order of questions in configure.sh · Priority: Medium
 
-put question about timeout for screen saver after the http port question
+Screen blank timeout was asked mid-way through the "Writing config files" section instead of in the "Display" section before writing begins.
 
-``` bash   
-Server
-────────────────────────────────────────
-?  HTTP port (default: 3000):
+**Fix:** Moved all display questions (touch device path, blank timeout) into a dedicated "Display" section before the "Writing config files" header. Removed the duplicate questions from the architecture-specific branches.
 
+---
 
-Writing config files
-────────────────────────────────────────
-▸  settings.yaml...
-✓  settings.yaml
-▸  .env...
-✓  .env
-▸  systemd: camper-monitor.service...
-✓  camper-monitor.service
-?  Screen blank timeout in minutes — 0 to disable (default: 3):
-```
+## Bug-6 — Solar charger card shows no overlay when device is out of reach · Priority: Medium
 
-### bug-6 solar charger card is shown while device is out of reach -, Priority medium
+Solar charger card was shown with no overlay and no values while the device was out of reach. Previously the card was hidden underneath the "Scanning…" overlay. The issue appeared after the starter battery was introduced. When the starter battery is not configured, the solar overlay worked correctly.
 
-solar charger card is shown while device is out of reach, overlay saying scanning is missing. No values are shown. Previously it was hidden underneath the overlay. It might have happend when the starter battery was introduced and wasn't appearing even with readings in. When Starter battery is not shown on the screen, it is hidden as expected and Scanning... is shown (correctly)
+Hint: `May 13 18:56:13 CamperMonitor node[2398]: [solar] connected`
+
+**Fix:** Two issues found.
+
+*React web UI (root cause):* The `SolarCard` overlay condition was `!connected && !solar` — the solar BLE reader emits `connected` immediately when noble starts scanning (it is a passive scanner, never establishes a GATT connection), leaving `connected=true` and `solar=null` with no overlay. Changed the condition to `!solar` so "Scanning…" appears whenever no Victron advertisement has been received yet, regardless of noble state. The fix was applied in commit `73b5591` but the React UI `dist/` was not rebuilt and committed — the browser was still serving the old bundle with the broken condition. Rebuilt and committed in this session.
+
+*Framebuffer renderer (ui-fb):* Same logic error in `renderer.js` `drawSolarCard`. Fixed separately.
