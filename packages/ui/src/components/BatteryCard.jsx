@@ -110,7 +110,7 @@ export function BatteryCard({ battery, connected, label = 'Body Battery', compac
 
         <div className="flex flex-col gap-3 flex-1">
           {compact ? (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-2">
               <Stat label="Voltage" value={battery ? `${battery.voltage} V` : '—'} color="#94a3b8" />
               <Stat label="Temp"    value={battery?.temperature != null ? `${battery.temperature} °C` : '—'} color="#94a3b8" />
             </div>
