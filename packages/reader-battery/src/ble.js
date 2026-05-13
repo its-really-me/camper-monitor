@@ -125,6 +125,7 @@ function createBleReader(config) {
   function connect(p) {
     diag.connectAttempts++
     peripheral = p
+    p.removeAllListeners('disconnect')
     p.connect(err => {
       if (err) return scheduleReconnect()
       p.discoverServices([SERVICE_UUID], (err, services) => {

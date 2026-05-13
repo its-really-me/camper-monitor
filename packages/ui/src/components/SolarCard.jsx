@@ -38,7 +38,7 @@ export function SolarCard({ solar, connected }) {
 
   let overlayTitle = null
   let overlayDetail = null
-  if (!connected && !solar) {
+  if (!solar) {
     overlayTitle  = 'Scanning…'
     overlayDetail = 'Looking for solar charger'
   } else if (!connected) {
