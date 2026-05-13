@@ -433,6 +433,17 @@ cd ~/camper-monitor && git pull && \
 
 On the Pi Zero W (framebuffer renderer), replace `kiosk` with `ui-fb`.
 
+### `kiosk` restart times out
+
+By default systemd waits 90 s for X11 and Firefox to exit gracefully before killing them. Add `TimeoutStopSec=10` so systemd force-kills the process group after 10 s instead:
+
+```sh
+sudo sed -i '/^RestartSec=5/a TimeoutStopSec=10' /etc/systemd/system/kiosk.service
+sudo systemctl daemon-reload
+```
+
+`configure.sh` writes this automatically from now on, so re-running the wizard also fixes it.
+
 ---
 
 ## Configuration reference

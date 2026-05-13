@@ -284,6 +284,7 @@ ExecStartPre=-/bin/rm -f /tmp/.X0-lock
 ExecStart=/usr/bin/startx -- vt7
 Restart=always
 RestartSec=5
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target
