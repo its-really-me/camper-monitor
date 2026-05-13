@@ -319,6 +319,15 @@ if [[ "$BATTERY_DRIVER" == "ble" || "$SOLAR_DRIVER" == "ble" || "$STARTER_DRIVER
     info "Restarting bluetooth service..."
     systemctl restart bluetooth
     success "Bluetooth restarted"
+
+    info "Setting CAP_NET_RAW on node binary (required for noble BLE access without root)..."
+    NODE_BIN=$(readlink -f "$(which node)")
+    if command -v setcap >/dev/null 2>&1; then
+        setcap cap_net_raw+eip "$NODE_BIN"
+        success "setcap cap_net_raw+eip $NODE_BIN"
+    else
+        warn "setcap not found — install libcap2-bin: sudo apt-get install -y libcap2-bin && sudo setcap cap_net_raw+eip $NODE_BIN"
+    fi
 fi
 
 # ── install native modules for chosen drivers ────────────────────────────────
