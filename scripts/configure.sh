@@ -334,9 +334,11 @@ fi
 header "Native modules"
 
 NATIVE_PKGS=()
-[[ "$BATTERY_DRIVER" == "ble" ]]      && NATIVE_PKGS+=(@abandonware/noble)
-[[ "$SOLAR_DRIVER"   == "ble" ]]      && NATIVE_PKGS+=(@abandonware/noble)
-[[ "$STARTER_DRIVER" == "bm6" ]]      && NATIVE_PKGS+=(@abandonware/noble)
+# @abandonware/bluetooth-hci-socket is noble's native HCI dependency; it is marked
+# optional in noble's package.json so --omit=optional silently skips it — add explicitly.
+[[ "$BATTERY_DRIVER" == "ble" ]]      && NATIVE_PKGS+=(@abandonware/noble @abandonware/bluetooth-hci-socket)
+[[ "$SOLAR_DRIVER"   == "ble" ]]      && NATIVE_PKGS+=(@abandonware/noble @abandonware/bluetooth-hci-socket)
+[[ "$STARTER_DRIVER" == "bm6" ]]      && NATIVE_PKGS+=(@abandonware/noble @abandonware/bluetooth-hci-socket)
 [[ "$SOLAR_DRIVER"   == "vedirect" ]] && NATIVE_PKGS+=(serialport)
 [[ "$ARCH"           == "armv6l" ]]   && NATIVE_PKGS+=(canvas)
 
