@@ -191,7 +191,7 @@ function createApi(state, { setupMode = false, settingsPath, getDiagnostics } = 
 
   app.get('/diagnostics', (_req, res) => {
     const d = getDiagnostics ? getDiagnostics() : {}
-    res.json({ ts: Date.now(), battery: d.battery ?? null, solar: d.solar ?? null })
+    res.json({ ts: Date.now(), battery: d.battery ?? null, solar: d.solar ?? null, starter: d.starter ?? null })
   })
 
   // Allow re-accessing setup at any time

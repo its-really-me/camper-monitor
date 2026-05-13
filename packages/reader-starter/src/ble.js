@@ -111,6 +111,8 @@ function createBleReader(config) {
     parseErrors:          0,
     lastReadingAt:        null,
     lastReading:          null,
+    lastRawHex:           null,   // raw notification bytes for protocol debugging
+    lastDecryptedHex:     null,   // decrypted bytes for voltage offset debugging
   }
 
   function noteDevice(p) {
@@ -140,6 +142,10 @@ function createBleReader(config) {
   function onData(chunk) {
     diag.lastRxAt      = Date.now()
     diag.rxBytesTotal += chunk.length
+    diag.lastRawHex    = chunk.toString('hex')
+    if (chunk.length >= 16) {
+      try { diag.lastDecryptedHex = decrypt(chunk.slice(0, 16)).toString('hex') } catch {}
+    }
     const reading = parsePayload(chunk)
     if (reading) {
       diag.parseOk++
@@ -252,6 +258,8 @@ function createBleReader(config) {
         lastReadingAt:        diag.lastReadingAt,
         lastReading:          diag.lastReading,
         secondsSinceReading:  diag.lastReadingAt ? +((Date.now() - diag.lastReadingAt) / 1000).toFixed(1) : null,
+        lastRawHex:           diag.lastRawHex,
+        lastDecryptedHex:     diag.lastDecryptedHex,
       }
     },
     events,
