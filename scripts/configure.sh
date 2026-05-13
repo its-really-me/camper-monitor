@@ -371,7 +371,7 @@ else
         --workspace=packages/reader-starter \
         --workspace=packages/ui-fb \
         --omit=optional --cache /tmp/npm-cache --loglevel=error
-    if sudo -u "$REAL_USER" npm install --no-save --omit=optional "${NATIVE_PKGS[@]}" \
+    if sudo -u "$REAL_USER" npm install --no-save "${NATIVE_PKGS[@]}" \
             --cache /tmp/npm-cache --loglevel=error; then
         success "Native modules ready"
     else

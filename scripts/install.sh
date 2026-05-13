@@ -135,6 +135,7 @@ sudo -u "$REAL_USER" npm install \
     --workspace=packages/server \
     --workspace=packages/reader-battery \
     --workspace=packages/reader-solar \
+    --workspace=packages/reader-starter \
     --workspace=packages/ui-fb \
     --omit=optional --cache /tmp/npm-cache --loglevel=error
 
