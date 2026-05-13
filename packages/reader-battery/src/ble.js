@@ -59,6 +59,7 @@ function createBleReader(config) {
   let reconnTimer  = null
   let running      = false
   let nobleReady   = false
+  let connecting   = false
 
   const diag = {
     nobleState:           'unknown',
@@ -123,23 +124,30 @@ function createBleReader(config) {
   }
 
   function connect(p) {
+    if (connecting) return
+    connecting = true
     diag.connectAttempts++
     peripheral = p
     p.removeAllListeners('disconnect')
     p.connect(err => {
-      if (err) return scheduleReconnect()
+      if (err) { connecting = false; return scheduleReconnect() }
       p.discoverServices([SERVICE_UUID], (err, services) => {
-        if (err || !services?.length) return scheduleReconnect()
+        if (err || !services?.length) { connecting = false; return scheduleReconnect() }
         services[0].discoverCharacteristics([WRITE_UUID, NOTIFY_UUID], (err, chars) => {
-          if (err) return scheduleReconnect()
+          if (err) { connecting = false; return scheduleReconnect() }
           const wc = chars.find(c => c.uuid === WRITE_UUID)
           const nc = chars.find(c => c.uuid === NOTIFY_UUID)
-          if (!wc || !nc) return scheduleReconnect()
+          if (!wc || !nc) { connecting = false; return scheduleReconnect() }
           writeChar = wc
           diag.connectedAt    = Date.now()
           diag.disconnectedAt = null
-          nc.subscribe()
+          nc.subscribe(err => {
+            if (err) events.emit('error', new Error(`BMS subscribe: ${err.message}`))
+          })
+          nc.removeAllListeners('data')
           nc.on('data', onData)
+          clearInterval(pollTimer)
+          connecting = false
           events.emit('connected')
           poll()
           pollTimer = setInterval(poll, interval)
@@ -147,6 +155,7 @@ function createBleReader(config) {
       })
     })
     p.on('disconnect', () => {
+      connecting = false
       diag.disconnectedAt = Date.now()
       events.emit('disconnected')
       clearInterval(pollTimer)
@@ -156,6 +165,7 @@ function createBleReader(config) {
   }
 
   function scheduleReconnect() {
+    connecting = false
     diag.reconnectScheduledAt = Date.now()
     reconnTimer = setTimeout(() => {
       if (running) noble.startScanning([], false)
