@@ -412,6 +412,16 @@ If the target device appears but with a different MAC than configured, re-run `s
 - Wrong MAC configured — run the scan check above
 - `adv=0` — BLE adapter not scanning (check `nobleState` first)
 
+### Starter battery slow to connect or never connects
+
+All BLE readers share a single noble instance. When the battery reader connects to the JBD BMS it calls `noble.stopScanning()`, which silently kills the scan for all other readers. If both the JBD BMS and the BM6 are in range at the same time, whichever reader connects first can starve the other. This is resolved in the code (each reader resumes scanning after its own GATT connection is established), but if you observe the issue after a clean deploy, check the diagnostics:
+
+```sh
+curl -s localhost:3000/diagnostics | python3 -m json.tool
+```
+
+Look at `starter.connectAttempts`, `starter.devicesSeenInScan`, and `starter.secondsSinceReading`. If `devicesSeenInScan` is empty after 30+ seconds the BM6 is not advertising — check it with the vendor app. If the BM6 appears in the scan list but `connectAttempts` stays at 0, the reader is not reaching its discover handler — restart the service.
+
 ### Service restart not reliable
 
 A full reboot is more reliable than `systemctl restart` when the BLE stack is involved:

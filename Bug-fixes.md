@@ -186,3 +186,19 @@ Hint: `May 13 18:56:13 CamperMonitor node[2398]: [solar] connected`
 *React web UI (root cause):* The `SolarCard` overlay condition was `!connected && !solar` — the solar BLE reader emits `connected` immediately when noble starts scanning (it is a passive scanner, never establishes a GATT connection), leaving `connected=true` and `solar=null` with no overlay. Changed the condition to `!solar` so "Scanning…" appears whenever no Victron advertisement has been received yet, regardless of noble state. The fix was applied in commit `73b5591` but the React UI `dist/` was not rebuilt and committed — the browser was still serving the old bundle with the broken condition. Rebuilt and committed in this session.
 
 *Framebuffer renderer (ui-fb):* Same logic error in `renderer.js` `drawSolarCard`. Fixed separately.
+
+---
+
+## Bug-7 — `[solar] connected` logged on every boot regardless of charger presence · Priority: Low
+
+The server log showed `[solar] connected` immediately on boot even when the Victron solar charger was nowhere near the Pi. This was caused by the solar BLE reader emitting `connected` when the Bluetooth adapter powered on rather than when a Victron advertisement was actually received. It also incorrectly set `solarConnected = true` in the server state on every boot.
+
+**Fix:** Removed the `events.emit('connected')` calls from the BT adapter `poweredOn` handler in `reader-solar/src/ble.js`. Added an `everConnected` flag; `connected` is now emitted once, on the first successfully decrypted Victron advertisement. The log and the server state now accurately reflect whether the charger is in range.
+
+---
+
+## Bug-8 — Starter battery BLE slow to connect or never connects · Priority: High
+
+The starter battery (BM6) sometimes took a very long time to connect or failed entirely. Root cause: `@abandonware/noble` is a singleton shared by all readers in the same process. When the battery reader (`reader-battery`) found the JBD BMS and called `noble.stopScanning()`, scanning stopped for all readers including the starter reader. The starter reader had no mechanism to detect this and would simply wait indefinitely for a discover event that never arrived.
+
+**Fix:** After the GATT connection is successfully established in both `reader-battery/src/ble.js` and `reader-starter/src/ble.js`, `noble.startScanning([], false)` is called immediately. This resumes scanning so the other reader's discover handler can still receive advertisements. A connected device does not require active scanning, so restarting the scan has no effect on the established connection.

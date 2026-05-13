@@ -2,7 +2,7 @@
 
 **Version:** 1.3  
 **Date:** 2026-05-12  
-**Status:** Implemented (BLE end-to-end verification pending)
+**Status:** Implemented and verified on hardware
 
 ---
 
@@ -564,4 +564,4 @@ sudo journalctl -u kiosk -f          # Pi Zero 2 W only
 
 | # | Topic | Status |
 |---|-------|--------|
-| OO-1 | BLE end-to-end verification | BLE drivers (JBD BMS battery reader, Victron SmartSolar BLE reader) have not yet been tested with real hardware. Mock mode works. Pi Zero 2 W kiosk + server confirmed working on real hardware. Real BLE connection, data parsing, and dashboard display with live devices — in progress. |
+| OO-1 | BLE end-to-end verification | **Verified.** JBD BMS (battery), Victron SmartSolar (BLE), and intAct Battery-Guard / BM6 (starter) all confirmed working with real hardware on Pi Zero 2 W. SoC, voltage, current, temperature, and charge mode display correctly. Several BLE-specific bugs found and fixed during verification (see Bug-fixes.md). |
