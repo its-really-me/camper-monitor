@@ -232,7 +232,11 @@ function drawSolarCard(ctx, solar, connected, x, y, w, h) {
     badge(ctx, solar.mode ?? '—', x + 16, y + h - 20, mb.bg, mb.fg)
   }
 
-  const ov = overlayMessage(connected, solar?.ts ?? null)
+  // Solar BLE reader emits 'connected' on startup before finding the device,
+  // so show Scanning whenever there is no data regardless of connected state.
+  const ov = !solar
+    ? { title: 'Scanning…', detail: null }
+    : overlayMessage(connected, solar.ts)
   if (ov) cardOverlay(ctx, ov.title, ov.detail, x, y, w, h)
 }
 
