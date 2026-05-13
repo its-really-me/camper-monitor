@@ -63,9 +63,9 @@ function parsePayload(buf) {
   // Bytes 0-3 are the protocol header echoed from the handshake — not sensor data.
   if (d[0] !== 0xd1 || d[1] !== 0x55) return null
 
-  // Bytes 6-7: voltage as LE uint16 × 0.01 V
-  const voltage = d.readUInt16LE(6) / 100
-  if (voltage < 8 || voltage > 20) return null   // sanity: reject garbage frames
+  // Bytes 7-8: voltage as BE uint16 × 0.01 V
+  const voltage = d.readUInt16BE(7) / 100
+  if (voltage < 2.5 || voltage > 20) return null   // sanity: reject garbage frames
 
   // Voltage > 13.2 V means the alternator is charging — OCV-based SoC is meaningless then
   const charging = voltage > 13.2
