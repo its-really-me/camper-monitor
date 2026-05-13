@@ -9,31 +9,21 @@ function createMockReader(config) {
   const interval = config.pollInterval ?? 5000
 
   let timer      = null
+  // Oscillate between 11.8 V and 13.5 V over 60 ticks (full cycle)
+  const CYCLE    = 60
   let tick       = 0
-  // Cycle length in ticks: ~120 ticks = 2 min at 1s intervals
-  const CYCLE    = 120
 
   function reading() {
-    const phase = tick % CYCLE
-    let voltage, temperature
+    // Sine wave: 0→peak→0→trough→0 over one cycle
+    const angle   = (tick % CYCLE) / CYCLE * 2 * Math.PI
+    const MID     = 12.65
+    const AMP     = 0.85                                       // 11.8 – 13.5 V range
+    const voltage = +(MID + AMP * Math.sin(angle) + (Math.random() - 0.5) * 0.04).toFixed(2)
 
-    if (phase < 5) {
-      // Engine cranking — brief voltage sag
-      voltage = +(11.2 + Math.random() * 0.4).toFixed(2)
-    } else if (phase < 60) {
-      // Alternator charging
-      voltage = +(13.8 + Math.random() * 0.4).toFixed(2)
-    } else {
-      // Engine off, battery at rest — gentle drift down from full
-      const restPhase = phase - 60
-      voltage = +(12.7 - restPhase * 0.008 + (Math.random() - 0.5) * 0.05).toFixed(2)
-    }
-
-    temperature = +(20 + Math.random() * 10).toFixed(1)
-
-    const charging = voltage > 13.2
-    const soc      = charging ? null : voltageToSoc(voltage)
-    const status   = charging ? 'charging' : 'idle'
+    const temperature = +(20 + Math.random() * 10).toFixed(1)
+    const charging    = voltage > 13.2
+    const soc         = charging ? null : voltageToSoc(voltage)
+    const status      = charging ? 'charging' : 'idle'
 
     tick++
     return { voltage, temperature, soc, current: null, power: null, status, ts: Date.now() }

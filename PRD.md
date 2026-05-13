@@ -1,14 +1,14 @@
 # Product Requirements Document — Camper Monitor
 
-**Version:** 1.2  
-**Date:** 2026-05-11  
+**Version:** 1.3  
+**Date:** 2026-05-12  
 **Status:** Implemented (BLE end-to-end verification pending)
 
 ---
 
 ## 1. Overview
 
-Camper Monitor is a real-time dashboard running on a Raspberry Pi Zero with an attached 1024×600 HDMI display. It reads live data from two Bluetooth/serial devices — an Eco-worthy 12V LiFePO4 battery (JBD BMS) and a Victron SmartSolar MPPT 75/15 — and presents the data in a clear, always-on UI suitable for a camper van.
+Camper Monitor is a real-time dashboard running on a Raspberry Pi Zero with an attached 1024×600 HDMI display. It reads live data from a Eco-worthy 12V LiFePO4 body battery (JBD BMS via BLE), a Victron SmartSolar MPPT 75/15 (VE.Direct or BLE), and optionally a 12V lead-acid starter battery (intAct Battery-Guard / BM6 via BLE). Data is presented in a clear, always-on UI suitable for a camper van.
 
 The system is also runnable on a developer's machine without any hardware (mock mode).
 
@@ -18,19 +18,20 @@ The system is also runnable on a developer's machine without any hardware (mock 
 
 | # | Goal |
 |---|------|
-| G1 | Show battery State of Charge, power draw, current, voltage, and status in real time |
+| G1 | Show body battery (Aufbaubatterie) State of Charge, power draw, current, voltage, and status in real time |
 | G2 | Show solar charger PV voltage, PV current, PV power, battery-side current, and charge mode |
 | G3 | Run on Raspberry Pi Zero (no Docker, installed via `npm install`) |
-| G4 | Run on a developer Mac/Linux with simulated data (`MOCK=true`) |
+| G4 | Run on a developer Mac/Linux with simulated data (mock mode) |
 | G5 | Display optimised for 1024×600 (confirmed hardware resolution) — Firefox ESR kiosk on Pi Zero 2 W; framebuffer renderer on Pi Zero W |
 | G6 | Each hardware reader is an independently replaceable module |
+| G7 | Optionally monitor a 12V lead-acid starter battery (Starterbatterie) via intAct Battery-Guard / BM6 BLE device |
 
 ## 3. Non-Goals
 
 - Cloud sync, remote access, or notifications
 - Historical data storage or charting
 - Control of battery or solar charger settings
-- Support for more than one battery or one solar charger simultaneously
+- Support for more than one solar charger simultaneously
 
 ---
 
@@ -47,6 +48,10 @@ The system is also runnable on a developer's machine without any hardware (mock 
 │  │  (JBD BMS / BLE) │   │ (Victron VE.Direct   │    │
 │  └────────┬─────────┘   │  or BLE fallback)    │    │
 │           │             └──────────┬───────────┘    │
+│  ┌────────┴─────────┐             │                 │
+│  │  reader-starter  │ (optional)  │                 │
+│  │  (BM6 / BLE)     │             │                 │
+│  └────────┬─────────┘             │                 │
 │           └──────────┬─────────────┘                │
 │                      ▼                              │
 │              ┌───────────────┐                      │
@@ -72,6 +77,9 @@ Pi Zero W (ARM11) has no NEON SIMD extensions. Both Chromium and Epiphany/WebKit
 │  ┌──────────────────┐   ┌──────────────────────┐    │
 │  │  reader-battery  │   │    reader-solar      │    │
 │  └────────┬─────────┘   └──────────┬───────────┘    │
+│  ┌────────┴─────────┐             │                 │
+│  │  reader-starter  │ (optional)  │                 │
+│  └────────┬─────────┘             │                 │
 │           └──────────┬─────────────┘                │
 │                      ▼                              │
 │              ┌───────────────┐                      │
@@ -126,6 +134,8 @@ readers:
     driver: ble          # 'ble' | 'mock'
   solar:
     driver: vedirect     # 'vedirect' | 'ble' | 'mock'
+  starter:               # optional — omit entirely to disable
+    driver: bm6          # 'bm6' | 'mock'
 ```
 
 Adding a new reader (e.g. a different BMS brand) means creating a new package that exports `createReader` — nothing else changes.
@@ -143,12 +153,19 @@ camper-monitor/
 │   ├── install.sh             # full system installer — auto-detects Pi model
 │   └── configure.sh           # interactive config wizard — can be re-run any time
 ├── packages/
-│   ├── reader-battery/        # JBD BMS reader
+│   ├── reader-battery/        # JBD BMS reader (body battery / Aufbaubatterie)
 │   │   ├── package.json
 │   │   └── src/
 │   │       ├── index.js       # createReader factory → picks ble.js or mock.js
 │   │       ├── ble.js         # noble BLE + JBD protocol parser
 │   │       └── mock.js        # realistic SoC drift simulation
+│   │
+│   ├── reader-starter/        # intAct Battery-Guard / BM6 reader (optional starter battery)
+│   │   ├── package.json
+│   │   └── src/
+│   │       ├── index.js       # createReader factory → picks ble.js or mock.js
+│   │       ├── ble.js         # noble BLE + BM6 AES-128-CBC protocol (static key)
+│   │       └── mock.js        # sine-wave voltage oscillation 11.8–13.5 V
 │   │
 │   ├── reader-solar/          # Victron SmartSolar reader
 │   │   ├── package.json
@@ -235,7 +252,42 @@ Encryption: AES-128-CTR. Key: 32-char hex from VictronConnect → Product info �
 
 > **PV voltage is not transmitted in the BLE advertisement payload.** Use VE.Direct if PV voltage is required.
 
-### 7.3 Victron Charge State Codes → `mode`
+### 7.3 StarterReading
+
+Source: intAct Battery-Guard / BM6 via BLE (protocol reverse-engineered — see tarball.ca/posts/reverse-engineering-the-bm6-ble-battery-monitor/)  
+Service: `0xFFF0` · Write: `0xFFF3` (handshake) · Notify: `0xFFF4` (encrypted readings)  
+Encryption: AES-128-CBC, static key `"leagend\xff\xfe010009"` (16 bytes), zero IV — no per-device pairing needed.
+
+| Field | Type | Unit | Source | Notes |
+|-------|------|------|--------|-------|
+| `voltage` | `number` | V | bytes 2–3 | BE uint16 / 100 |
+| `temperature` | `number\|null` | °C | bytes 4–5 | `(raw - 2731) / 10`; null if unreasonable |
+| `soc` | `number\|null` | % | derived | Estimated from OCV lookup table (see below); `null` when charging |
+| `current` | `null` | — | — | Not available from BM6 protocol |
+| `power` | `null` | — | — | Not available from BM6 protocol |
+| `status` | `string` | — | derived | `'charging'` when voltage > 13.2 V (alternator); `'idle'` otherwise |
+| `ts` | `number` | ms | — | `Date.now()` at read time |
+
+**SoC estimation (open-circuit voltage only):**  
+Valid only when engine is off and battery is at rest. When voltage > 13.2 V the alternator is active and SoC is suppressed (`null`); the UI shows "Charging" instead.
+
+| Voltage ≥ | SoC |
+|-----------|-----|
+| 12.70 V | 100 % |
+| 12.60 V | 95 % |
+| 12.50 V | 90 % |
+| 12.40 V | 80 % |
+| 12.30 V | 70 % |
+| 12.20 V | 60 % |
+| 12.10 V | 50 % |
+| 12.00 V | 40 % |
+| 11.90 V | 30 % |
+| 11.80 V | 20 % |
+| 11.70 V | 10 % |
+| 11.60 V | 5 % |
+| < 11.60 V | 0 % |
+
+### 7.4 Victron Charge State Codes → `mode`
 
 | CS | Mode string |
 |----|-------------|
@@ -285,6 +337,11 @@ readers:
     advertisementKey: "aabbccddeeff..."       # 32-char hex, BLE driver only
     pollInterval: 2000
 
+  starter:                   # optional — omit this block entirely to disable
+    driver: bm6              # 'bm6' | 'mock'
+    macAddress: "AA:BB:CC:DD:EE:FF"           # BLE MAC of intAct Battery-Guard / BM6
+    pollInterval: 5000
+
 server:
   port: 3000
 ```
@@ -296,6 +353,7 @@ Environment variables override yaml values at runtime:
 | `BATTERY_DRIVER` | `readers.battery.driver` |
 | `SOLAR_DRIVER` | `readers.solar.driver` |
 | `SOLAR_PORT` | `readers.solar.port` |
+| `STARTER_DRIVER` | `readers.starter.driver` |
 | `PORT` | `server.port` |
 | `TOUCH_DEVICE` | `ui-fb` only — path to touch input device (default `/dev/input/event0`) |
 | `BLANK_TIMEOUT` | `ui-fb` only — idle minutes before display blanks; `0` to disable (default `3`) |
@@ -306,11 +364,12 @@ Environment variables override yaml values at runtime:
 
 When a driver is set to `mock`, the reader generates **realistic, time-varying data** without any hardware:
 
-- **Battery mock**: SoC drifts between 97 % (fully charged) and 20 % (floor); transitions between charging and discharging automatically.
-- **Solar mock**: sine-based day curve — 0 W at night, peak ~120 W at solar noon (07:00–19:30 window). Charge mode transitions Bulk → Absorption → Float.
-- Both mocks emit at the same `pollInterval` as their real counterparts.
+- **Battery mock** (`reader-battery`): SoC drifts between 97 % (fully charged) and 20 % (floor); transitions between charging and discharging automatically.
+- **Solar mock** (`reader-solar`): sine-based day curve — 0 W at night, peak ~120 W at solar noon (07:00–19:30 window). Charge mode transitions Bulk → Absorption → Float.
+- **Starter mock** (`reader-starter`): sine-wave voltage oscillation between 11.8 V and 13.5 V over a 60-tick cycle. Passes through every entry in the OCV→SoC table. Voltage above 13.2 V shows "Charging" (simulating the alternator phase); below 13.2 V shows estimated SoC.
+- All mocks emit at the same `pollInterval` as their real counterparts.
 
-In development (`npm run dev`), both drivers default to `mock` automatically.
+In development (`npm run dev`), set `BATTERY_DRIVER=mock` and `SOLAR_DRIVER=mock` in `.env`. The starter battery is enabled by adding a `starter:` block to `settings.yaml` with `driver: mock`.
 
 ---
 

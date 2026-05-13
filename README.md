@@ -6,7 +6,7 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 
 ## What it shows
 
-**Battery (Eco-worthy JBD BMS via Bluetooth)**
+**Body Battery — Aufbaubatterie (Eco-worthy JBD BMS via Bluetooth)**
 - State of Charge with animated gauge
 - Voltage, current, power
 - Status: Charging / Discharging / Idle
@@ -18,6 +18,11 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 - Charge mode: Bulk / Absorption / Float / Off / …
 - Yield today (kWh)
 - Animated power flow diagram
+
+**Starter Battery — Starterbatterie (intAct Battery-Guard / BM6, optional)**
+- Voltage and State of Charge estimated from open-circuit voltage
+- Temperature
+- Status: Charging (when alternator is running, >13.2 V) / Idle
 
 ---
 
@@ -40,12 +45,15 @@ Then clone and run:
 git clone https://github.com/its-really-me/camper-monitor.git
 cd camper-monitor
 npm install
+npm install --prefix packages/ui   # Vite and React dev deps (not in root workspace)
 npm run dev
 ```
 
-Open **http://localhost:5175** — mock data runs automatically, no devices needed.
+Open **http://localhost:5173** — mock data runs automatically, no devices needed.
 
 > If Vite picks a different port it prints the URL in the terminal.
+
+> If you ever run a bare `npm install` at the root again (e.g. after pulling new packages), re-run `npm install --prefix packages/ui` afterwards — the root install does not cover `packages/ui` since it is built separately for the Pi.
 
 ---
 
@@ -107,6 +115,7 @@ sudo bash /opt/camper-monitor/scripts/configure.sh
 It will ask for:
 - Battery driver (`ble` / `mock`) and BLE MAC address
 - Solar driver (`vedirect` / `ble` / `mock`), serial port or BLE MAC + advertisement key
+- **Starter battery** (optional) — `y/N`; if yes: BLE MAC address (BM6 encryption key is static, no entry needed)
 - HTTP server port
 - **Pi Zero W only:** touch device path
 - Screen-blank idle timeout in minutes — both Pi Zero W and Pi Zero 2 W (`0` to disable)
@@ -424,10 +433,14 @@ sudo reboot
 | `readers.solar.port` | `settings.yaml` | Serial port for VE.Direct (default `/dev/ttyUSB0`) |
 | `readers.solar.macAddress` | `settings.yaml` | BLE MAC of SmartSolar (BLE driver only) |
 | `readers.solar.advertisementKey` | `settings.yaml` | 32-char hex key (BLE driver only) |
+| `readers.starter.driver` | `settings.yaml` | `bm6` or `mock` — omit entire `starter:` block to disable |
+| `readers.starter.macAddress` | `settings.yaml` | BLE MAC of intAct Battery-Guard / BM6 device |
+| `readers.starter.pollInterval` | `settings.yaml` | Poll interval in ms (default 5000) |
 | `server.port` | `settings.yaml` | HTTP port (default 3000) |
 | `BATTERY_DRIVER` | `.env` | Overrides `readers.battery.driver` |
 | `SOLAR_DRIVER` | `.env` | Overrides `readers.solar.driver` |
 | `SOLAR_PORT` | `.env` | Overrides `readers.solar.port` |
+| `STARTER_DRIVER` | `.env` | Overrides `readers.starter.driver` |
 | `PORT` | `.env` | Overrides `server.port` |
 
 ---
