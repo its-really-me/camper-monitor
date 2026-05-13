@@ -1,6 +1,6 @@
 # Bug Fixes
 
-During fixing, all edits are approved. Fixed bugs are annotated with their resolution.
+During fixing, all edits are approved. Fixed bugs are annotated with their resolution. Provide help for the testing. Wait for confirmation before marking them as resolved. Don't look after resolved when reiterating through the list.
 
 ---
 
@@ -166,3 +166,28 @@ hci0 type 7 discovering on
 [NEW] Device 5A:82:D9:B5:43:18 5A-82-D9-B5-43-18
 hci0 type 7 discovering off
 ```
+
+### bug-5 order in config script -, Priority medium
+
+put question about timeout for screen saver after the http port question
+
+``` bash   
+Server
+────────────────────────────────────────
+?  HTTP port (default: 3000):
+
+
+Writing config files
+────────────────────────────────────────
+▸  settings.yaml...
+✓  settings.yaml
+▸  .env...
+✓  .env
+▸  systemd: camper-monitor.service...
+✓  camper-monitor.service
+?  Screen blank timeout in minutes — 0 to disable (default: 3):
+```
+
+### bug-6 solar charger card is shown while device is out of reach -, Priority medium
+
+solar charger card is shown while device is out of reach, overlay saying scanning is missing. No values are shown. Previously it was hidden underneath the overlay. It might have happend when the starter battery was introduced and wasn't appearing even with readings in. When Starter battery is not shown on the screen, it is hidden as expected and Scanning... is shown (correctly)
