@@ -25,29 +25,6 @@ const HANDSHAKE = (() => {
   return Buffer.concat([cipher.update(plain), cipher.final()])
 })()
 
-// SoC lookup table for 12V lead-acid (open-circuit voltage)
-const SOC_TABLE = [
-  [12.70, 100],
-  [12.60,  95],
-  [12.50,  90],
-  [12.40,  80],
-  [12.30,  70],
-  [12.20,  60],
-  [12.10,  50],
-  [12.00,  40],
-  [11.90,  30],
-  [11.80,  20],
-  [11.70,  10],
-  [11.60,   5],
-]
-
-function voltageToSoc(voltage) {
-  for (const [v, soc] of SOC_TABLE) {
-    if (voltage >= v) return soc
-  }
-  return 0
-}
-
 function decrypt(buf) {
   const decipher = crypto.createDecipheriv('aes-128-cbc', KEY, IV)
   decipher.setAutoPadding(false)
@@ -67,14 +44,19 @@ function parsePayload(buf) {
   const voltage = d.readUInt16BE(7) / 100
   if (voltage < 2.5 || voltage > 20) return null   // sanity: reject garbage frames
 
-  // Voltage > 13.2 V means the alternator is charging — OCV-based SoC is meaningless then
+  // Byte 6: SoC as integer percentage (device's own tracking, not OCV table)
+  const soc = d[6]
+
+  // Bytes 4-5: temperature — byte[4] = integer °C, byte[5] = tenths °C
+  const rawTemp   = d[4] + d[5] / 10
+  const temperature = (rawTemp > -40 && rawTemp < 80) ? +rawTemp.toFixed(1) : null
+
   const charging = voltage > 13.2
-  const soc      = charging ? null : voltageToSoc(voltage)
   const status   = charging ? 'charging' : 'idle'
 
   return {
     voltage:     +voltage.toFixed(2),
-    temperature: null,
+    temperature,
     soc,
     current:     null,
     power:       null,
