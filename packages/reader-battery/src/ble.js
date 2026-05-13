@@ -149,6 +149,8 @@ function createBleReader(config) {
           clearInterval(pollTimer)
           connecting = false
           events.emit('connected')
+          // Resume scanning so other BLE readers (e.g. starter) can find their devices
+          noble.startScanning([], false)
           poll()
           pollTimer = setInterval(poll, interval)
         })

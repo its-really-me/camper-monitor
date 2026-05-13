@@ -120,6 +120,7 @@ function createBleReader(config) {
         diag.readingsTotal++
         diag.lastReadingAt = Date.now()
         diag.lastReading   = reading
+        if (!everConnected) { everConnected = true; events.emit('connected') }
         events.emit('data', reading)
       } else {
         diag.parseErrors++
@@ -130,7 +131,8 @@ function createBleReader(config) {
     }
   }
 
-  let nobleReady = false
+  let nobleReady     = false
+  let everConnected  = false   // emit 'connected' once on first Victron advertisement
 
   return {
     start() {
@@ -152,7 +154,6 @@ function createBleReader(config) {
           diag.nobleState = state
           if (state === 'poweredOn') {
             diag.scanStartedAt = Date.now()
-            events.emit('connected')
             noble.startScanning([], true)   // allow duplicates for continuous updates
           }
         })
@@ -161,7 +162,6 @@ function createBleReader(config) {
       if (noble.state === 'poweredOn') {
         diag.nobleState    = noble.state
         diag.scanStartedAt = Date.now()
-        events.emit('connected')
         noble.startScanning([], true)
       }
     },

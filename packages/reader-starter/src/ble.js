@@ -165,6 +165,8 @@ function createBleReader(config) {
           clearInterval(pollTimer)
           connecting = false
           events.emit('connected')
+          // Resume scanning so other BLE readers (e.g. battery) can find their devices
+          noble.startScanning([], false)
           sendHandshake()
           // Re-send handshake on interval — device stops notifying if not periodically polled
           pollTimer = setInterval(sendHandshake, interval)
