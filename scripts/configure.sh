@@ -268,6 +268,12 @@ xinput list | grep 'vc4-hdmi' | sed 's/.*id=\([0-9]*\).*/\1/' | \
 openbox &
 sleep 2
 mkdir -p /tmp/firefox-kiosk
+cat > /tmp/firefox-kiosk/user.js << 'USERJS'
+user_pref("dom.ipc.processCount", 1);
+user_pref("browser.tabs.remote.autostart", false);
+user_pref("dom.webnotifications.enabled", false);
+user_pref("dom.push.enabled", false);
+USERJS
 firefox-esr --kiosk --no-remote --profile /tmp/firefox-kiosk http://localhost:$SERVER_PORT
 EOF
     chmod +x "$REAL_HOME/.xinitrc"
@@ -313,6 +319,27 @@ EOF
     systemctl daemon-reload
 
 fi
+
+# ── system optimisation ──────────────────────────────────────────────────────
+header "System optimisation"
+
+info "Disabling unused system services (NFS daemons)..."
+for svc in rpcbind blkmapd nfs-common; do
+    systemctl disable --now "$svc" 2>/dev/null && info "  disabled: $svc" || true
+done
+success "NFS daemons disabled"
+
+info "Masking audio/portal user services (not needed for kiosk)..."
+MASK_DIR="$REAL_HOME/.config/systemd/user"
+mkdir -p "$MASK_DIR"
+for unit in \
+    pipewire.socket pipewire-pulse.socket wireplumber.service \
+    mpris-proxy.service gvfs-daemon.service gvfsd.service \
+    xdg-document-portal.service xdg-permission-store.service; do
+    ln -sf /dev/null "$MASK_DIR/$unit"
+done
+chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.config/systemd"
+success "Audio/portal user services masked"
 
 # ── bluetooth (when any BLE driver is selected) ──────────────────────────────
 if [[ "$BATTERY_DRIVER" == "ble" || "$SOLAR_DRIVER" == "ble" || "$STARTER_DRIVER" == "bm6" ]]; then
