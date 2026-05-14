@@ -59,7 +59,7 @@ const strings = {
     bodyBattery:       'Bordbatterie',
     starterBattery:    'Starterbatterie',
     solarCharger:      'Solarladeregler',
-    powerFlow:         'Leistungsfluss',
+    powerFlow:         'Energiefluss',
     // stat labels
     voltage:           'Spannung',
     current:           'Strom',
@@ -67,7 +67,7 @@ const strings = {
     temp:              'Temp',
     yieldToday:        'Ertrag heute',
     mppt:              'MPPT',
-    pvInput:           'PV Eingang',
+    pvInput:           'PV-Eingang',
     batterySide:       'Batterieseite',
     // connection badges
     live:              'Live',
@@ -90,7 +90,7 @@ const strings = {
     load:              'Verbraucher',
     // solar charge modes
     modeBulk:          'Bulk-Laden',
-    modeAbsorption:    'Absorption',
+    modeAbsorption:    'Aufnahme',
     modeFloat:         'Erhaltung',
     modeEqualize:      'Ausgleichsladen',
     modeAutoEqualize:  'Auto-Ausgleich',
