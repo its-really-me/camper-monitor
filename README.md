@@ -663,7 +663,7 @@ Der SmartSolar 75/15 sendet Live-Daten per BLE mit verschlüsselten Werbepaketen
 In der **VictronConnect**-App:
 1. VictronConnect öffnen und mit dem SmartSolar verbinden.
 2. Auf den Gerätenamen tippen → **Produktinfo**.
-3. Zum **Werbeschlüssel** scrollen — den 32-stelligen Hex-String kopieren.
+3. Zum **Advertisement key** scrollen — den 32-stelligen Hex-String kopieren.
 
 ### Schritt 2 — MAC-Adresse herausfinden
 
@@ -692,6 +692,7 @@ readers:
 ## MAC-Adressen finden
 
 ### JBD-BMS (Bordbatterie)
+entweder label auf dem Produkt suchen oder 
 
 ```sh
 sudo bluetoothctl
