@@ -1,3 +1,10 @@
+/*
+ * Camper Monitor — index.css
+ * Global CSS — Tailwind base, components, and utility layers.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

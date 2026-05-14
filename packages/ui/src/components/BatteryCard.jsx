@@ -1,16 +1,24 @@
+/**
+ * Camper Monitor — BatteryCard.jsx
+ * Battery card — SoC gauge, voltage, current, power, temperature.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 import { Battery } from 'lucide-react'
 import { useStale, fmtAge } from '../hooks/useStale'
 import { CardOverlay }      from './CardOverlay'
+import { useT }             from '../i18n'
 
 const R = 54
-const C = 2 * Math.PI * R          // full circumference ≈ 339.3
-const TRACK = C * 0.75             // 270° arc ≈ 254.5
+const C = 2 * Math.PI * R
+const TRACK = C * 0.75
 
 function socColor(soc) {
   if (soc == null) return '#475569'
-  if (soc > 50) return '#34d399'   // emerald
-  if (soc > 20) return '#fbbf24'   // amber
-  return '#f87171'                  // red
+  if (soc > 50) return '#34d399'
+  if (soc > 20) return '#fbbf24'
+  return '#f87171'
 }
 
 function SocGauge({ soc }) {
@@ -20,7 +28,6 @@ function SocGauge({ soc }) {
 
   return (
     <svg viewBox="0 0 140 140" className="w-28 h-28 shrink-0">
-      {/* Background track */}
       <circle
         cx={70} cy={70} r={R}
         fill="none"
@@ -30,7 +37,6 @@ function SocGauge({ soc }) {
         strokeDasharray={`${TRACK} ${C - TRACK}`}
         transform="rotate(135 70 70)"
       />
-      {/* Progress arc */}
       <circle
         cx={70} cy={70} r={R}
         fill="none"
@@ -66,30 +72,28 @@ function Stat({ label, value, color }) {
   )
 }
 
-function statusBadge(status) {
-  const map = {
-    charging:    { label: 'Charging',    bg: 'bg-emerald-900/60', text: 'text-emerald-400' },
-    discharging: { label: 'Discharging', bg: 'bg-amber-900/60',   text: 'text-amber-400'   },
-    idle:        { label: 'Idle',        bg: 'bg-slate-700/60',   text: 'text-slate-400'   },
-  }
-  return map[status] ?? { label: status ?? '—', bg: 'bg-slate-700/60', text: 'text-slate-400' }
+const STATUS_KEY = {
+  charging:    'charging',
+  discharging: 'discharging',
+  idle:        'idle',
 }
 
-export function BatteryCard({ battery, connected, label = 'Body Battery', compact = false }) {
-  const badge               = statusBadge(battery?.status)
-  const { stale, ageSeconds } = useStale(battery?.ts)
+export function BatteryCard({ battery, connected, label, compact = false }) {
+  const t                          = useT()
+  const { stale, ageSeconds }      = useStale(battery?.ts)
+  const statusKey                  = STATUS_KEY[battery?.status] ?? 'idle'
 
-  let overlayTitle = null
+  let overlayTitle  = null
   let overlayDetail = null
   if (!connected && !battery) {
-    overlayTitle  = 'Scanning…'
-    overlayDetail = 'Looking for device'
+    overlayTitle  = t('scanning')
+    overlayDetail = t('lookingForDevice')
   } else if (!connected) {
-    overlayTitle  = 'Disconnected'
-    overlayDetail = ageSeconds != null ? `Last data ${fmtAge(ageSeconds)} ago` : null
+    overlayTitle  = t('disconnected')
+    overlayDetail = ageSeconds != null ? t('lastDataAgo', { age: fmtAge(ageSeconds) }) : null
   } else if (stale) {
-    overlayTitle  = 'No data'
-    overlayDetail = `${fmtAge(ageSeconds)} since last reading`
+    overlayTitle  = t('noData')
+    overlayDetail = t('sinceLastReading', { age: fmtAge(ageSeconds) })
   }
 
   return (
@@ -100,7 +104,7 @@ export function BatteryCard({ battery, connected, label = 'Body Battery', compac
         <Battery size={20} className="text-slate-200 shrink-0" />
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-100">{label}</span>
         <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${connected ? 'bg-emerald-900/60 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>
-          {connected ? 'Live' : 'Offline'}
+          {connected ? t('live') : t('offline')}
         </span>
       </div>
 
@@ -111,18 +115,18 @@ export function BatteryCard({ battery, connected, label = 'Body Battery', compac
         <div className="flex flex-col gap-3 flex-1">
           {compact ? (
             <div className="flex flex-col gap-2">
-              <Stat label="Voltage" value={battery ? `${battery.voltage} V` : '—'} color="#94a3b8" />
-              <Stat label="Temp"    value={battery?.temperature != null ? `${battery.temperature} °C` : '—'} color="#94a3b8" />
+              <Stat label={t('voltage')} value={battery ? `${battery.voltage} V` : '—'} color="#94a3b8" />
+              <Stat label={t('temp')}    value={battery?.temperature != null ? `${battery.temperature} °C` : '—'} color="#94a3b8" />
             </div>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2">
-                <Stat label="Voltage" value={battery ? `${battery.voltage} V` : '—'} color="#94a3b8" />
-                <Stat label="Current" value={battery ? `${battery.current > 0 ? '+' : ''}${battery.current} A` : '—'} color="#60a5fa" />
+                <Stat label={t('voltage')} value={battery ? `${battery.voltage} V` : '—'} color="#94a3b8" />
+                <Stat label={t('current')} value={battery ? `${battery.current > 0 ? '+' : ''}${battery.current} A` : '—'} color="#60a5fa" />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Stat label="Power"   value={battery ? `${battery.power} W` : '—'} color="#facc15" />
-                <Stat label="Temp"    value={battery?.temperature != null ? `${battery.temperature} °C` : '—'} color="#94a3b8" />
+                <Stat label={t('power')} value={battery ? `${battery.power} W` : '—'} color="#facc15" />
+                <Stat label={t('temp')}  value={battery?.temperature != null ? `${battery.temperature} °C` : '—'} color="#94a3b8" />
               </div>
             </>
           )}
@@ -130,8 +134,12 @@ export function BatteryCard({ battery, connected, label = 'Body Battery', compac
       </div>
 
       {/* Status badge */}
-      <div className={`self-start text-xs font-semibold px-3 py-1 rounded-full ${badge.bg} ${badge.text}`}>
-        {badge.label}
+      <div className={`self-start text-xs font-semibold px-3 py-1 rounded-full ${
+        battery?.status === 'charging'    ? 'bg-emerald-900/60 text-emerald-400' :
+        battery?.status === 'discharging' ? 'bg-amber-900/60 text-amber-400' :
+                                            'bg-slate-700/60 text-slate-400'
+      }`}>
+        {t(statusKey)}
       </div>
     </div>
   )

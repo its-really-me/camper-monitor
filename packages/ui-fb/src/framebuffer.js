@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — ui-fb/framebuffer.js
+ * Framebuffer writer — converts Cairo BGRA canvas data to RGB565 and writes to /dev/fb0.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 // Writes a node-canvas raw buffer (Cairo BGRA, little-endian) to /dev/fb0.

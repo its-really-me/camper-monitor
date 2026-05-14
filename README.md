@@ -499,3 +499,372 @@ Each reader is a package that exports `createReader(config)` returning `{ start(
 4. Set the driver in `settings.yaml`
 
 No changes to the server or UI are needed.
+
+---
+
+---
+
+# Camper Monitor — Deutsche Übersetzung
+
+Echtzeit-Dashboard für eine 12-V-LiFePO4-Aufbaubatterie und den Victron SmartSolar MPPT 75/15, betrieben auf einem Raspberry Pi Zero mit angeschlossenem 1024×600-Display.
+
+## Was angezeigt wird
+
+**Bordbatterie (Eco-worthy JBD-BMS via Bluetooth)**
+- Ladezustand mit animiertem Rundinstrument
+- Spannung, Strom, Leistung
+- Status: Laden / Entladen / Standby
+- Temperatur
+
+**Solarladeregler (Victron SmartSolar 75/15 via VE.Direct oder Bluetooth)**
+- PV-Spannung, -Strom, -Leistung
+- Batteriestrom und -spannung (Ausgangsseite)
+- Lademodus: Bulk / Absorption / Erhaltung / Aus / …
+- Ertrag heute (kWh)
+- Animiertes Leistungsflussdiagramm
+
+**Starterbatterie (intAct Battery-Guard / BM6, optional)**
+- Spannung und Ladezustand (aus Ruhespannung abgeleitet)
+- Temperatur
+- Status: Laden (wenn Lichtmaschine läuft, >13,2 V) / Standby
+
+---
+
+## Lokale Entwicklung (ohne Hardware)
+
+Benötigt **Node.js 20+**. Installation von [nodejs.org](https://nodejs.org) oder per Paketmanager:
+
+```sh
+# macOS (Homebrew)
+brew install node
+
+# Debian / Ubuntu:
+sudo apt-get update
+sudo apt-get install -y nodejs npm
+```
+
+Dann klonen und starten:
+
+```sh
+git clone https://github.com/its-really-me/camper-monitor.git
+cd camper-monitor
+npm install
+npm install --prefix packages/ui
+npm run dev
+```
+
+**http://localhost:5173** öffnen — Testdaten laufen automatisch, keine Hardware nötig.
+
+> Falls Vite einen anderen Port wählt, steht die URL im Terminal.
+
+---
+
+## Raspberry-Pi-Installation
+
+### Hardware
+
+| Board | Anzeigepfad | Hinweis |
+|---|---|---|
+| Pi Zero W | Framebuffer-Renderer (`ui-fb`) | ARMv6 — Browser benötigen NEON (ARMv7+) und stürzen ab |
+| Pi Zero 2 W | Firefox ESR Kiosk | ARMv8 — volle NEON-Unterstützung; Firefox ESR zeigt keine Speicherwarnung |
+
+Betriebssystem: Raspberry Pi OS Bookworm oder Debian Trixie  
+Display: HDMI bei 1024×600
+
+### 1 — Flashen und erster Start
+
+Raspberry Pi OS Bookworm (64-Bit, Lite) oder Debian Trixie mit dem Raspberry Pi Imager flashen. SSH und WLAN in den Imager-Einstellungen vor dem Schreiben aktivieren.
+
+### 2 — Per SSH verbinden
+
+```sh
+ssh pi@<pi-ip-adresse>
+```
+
+### 3 — Repository klonen und Installer starten
+
+```sh
+git clone https://github.com/its-really-me/camper-monitor.git ~/camper-monitor
+sudo bash ~/camper-monitor/scripts/install.sh
+```
+
+Der Installer:
+- Installiert Node.js 20 (über NodeSource)
+- Setzt Boot-Ziel auf CLI und aktiviert SSH
+- Erstellt eine 512-MB-Auslagerungsdatei (falls keine vorhanden)
+- Installiert Bluetooth-, Seriell- und X11/Firefox-ESR-Abhängigkeiten
+- Erkennt die Pi-Architektur und richtet den Framebuffer-Renderer (Pi Zero W) oder den **Firefox-ESR**-Kiosk (Pi Zero 2 W) ein
+- Führt `npm install` aus (native Module werden nach der Konfiguration kompiliert)
+- Startet den **Konfigurationsassistenten** (siehe unten)
+- Erstellt die React-UI (nur Pi Zero 2 W, nach dem Assistenten)
+
+> **Alternative — kein Klonen notwendig:**
+> ```sh
+> curl -fsSL https://raw.githubusercontent.com/its-really-me/camper-monitor/main/scripts/install.sh | sudo bash
+> ```
+
+### 4 — Konfigurationsassistent
+
+Der Assistent startet automatisch am Ende der Installation. Erneuter Aufruf jederzeit möglich:
+
+```sh
+sudo bash /opt/camper-monitor/scripts/configure.sh
+```
+
+Abgefragt werden:
+- Batterie-Treiber (`ble` / `mock`) und BLE-MAC-Adresse
+- Solar-Treiber (`vedirect` / `ble` / `mock`), serieller Port oder BLE-MAC + Werbeschlüssel
+- **Starterbatterie** (optional) — `y/N`; bei Ja: BLE-MAC-Adresse (BM6-Verschlüsselungsschlüssel ist statisch, keine Eingabe nötig)
+- HTTP-Serverport
+- **Nur Pi Zero W:** Pfad zum Touch-Eingabegerät
+- **UI-Sprache** (`en` Englisch / `de` Deutsch)
+- Bildschirm-Abschalttimeout in Minuten (`0` zum Deaktivieren)
+
+Der Assistent schreibt `settings.yaml`, `.env` und Systemd-Servicedateien.
+
+> **Webbasierte Einrichtungsalternative:** Fehlt `settings.yaml`, stellt der Server automatisch ein Einrichtungsformular unter `http://<pi-ip>:3000/setup` bereit. Im Browser ausfüllen — kein SSH erforderlich.
+
+### 5 — Neustart und Überprüfung
+
+```sh
+sudo reboot
+```
+
+Nach dem Neustart sollte das Dashboard automatisch auf dem Display erscheinen. Bei Problemen:
+
+```sh
+sudo journalctl -u camper-monitor -f   # Serverprotokolle
+sudo journalctl -u ui-fb -f            # Pi Zero W — Framebuffer-Protokolle
+sudo journalctl -u kiosk -f            # Pi Zero 2 W — Firefox-ESR-Protokolle
+```
+
+---
+
+## Victron SmartSolar via Bluetooth
+
+Der SmartSolar 75/15 sendet Live-Daten per BLE mit verschlüsselten Werbepaketen (Victron *Instant Readout*). Kein USB-Kabel nötig, aber der verfügbare Datensatz ist gegenüber VE.Direct leicht reduziert.
+
+### Verfügbare Daten je Übertragungsweg
+
+| Feld | VE.Direct (USB) | Bluetooth |
+|---|:---:|:---:|
+| PV-Spannung | ✅ | ❌ |
+| PV-Strom (abgeleitet) | ✅ | ❌ |
+| PV-Leistung | ✅ | ✅ |
+| Batteriestrom | ✅ | ✅ |
+| Batteriespannung | ✅ | ✅ |
+| Lademodus | ✅ | ✅ |
+| Ertrag heute | ✅ | ✅ |
+
+> PV-Spannung ist nicht im BLE-Werbepaket enthalten. VE.Direct verwenden, wenn diese benötigt wird.
+
+### Schritt 1 — Werbeschlüssel ermitteln
+
+In der **VictronConnect**-App:
+1. VictronConnect öffnen und mit dem SmartSolar verbinden.
+2. Auf den Gerätenamen tippen → **Produktinfo**.
+3. Zum **Werbeschlüssel** scrollen — den 32-stelligen Hex-String kopieren.
+
+### Schritt 2 — MAC-Adresse herausfinden
+
+Auf dem Pi:
+```sh
+sudo bluetoothctl
+> scan on
+# SmartSolar erscheint als „SmartSolar MPPT 75|15" o. Ä.
+> scan off
+> quit
+```
+
+### Schritt 3 — `settings.yaml` konfigurieren
+
+```yaml
+readers:
+  solar:
+    driver: ble
+    macAddress: "AA:BB:CC:DD:EE:FF"
+    advertisementKey: "a1b2c3d4e5f6778899aabbccddeeff00"
+    pollInterval: 2000
+```
+
+---
+
+## MAC-Adressen finden
+
+### JBD-BMS (Bordbatterie)
+
+```sh
+sudo bluetoothctl
+> scan on
+# warten ~10 s — BMS erscheint, Name enthält meist „JBD" o. Ä.
+> scan off
+> quit
+```
+
+---
+
+## Anzeige: Pi Zero W vs. Pi Zero 2 W
+
+| Board | Ansatz | Grund |
+|---|---|---|
+| Pi Zero W (ARMv6) | **Framebuffer-Renderer** (`ui-fb`) | Kein Browser — Browser benötigen NEON (ARMv7+) |
+| Pi Zero 2 W (ARMv8) | **Firefox-ESR-Kiosk** | Volle NEON-Unterstützung; keine Speicherwarnung |
+
+Das Installationsskript erkennt die Architektur automatisch.
+
+### Pi Zero W — Framebuffer-Renderer
+
+`packages/ui-fb` ist ein Node.js-Prozess, der sich mit dem SSE-Stream des Servers verbindet und das Dashboard direkt über `node-canvas` (Cairo) auf `/dev/fb0` zeichnet. Kein X11, kein Browser, kein NEON erforderlich.
+
+Das `canvas`-npm-Paket wird auf ARMv6 aus dem Quellcode kompiliert — das dauert **5–15 Minuten** auf Pi-Zero-W-Hardware. Das Installationsskript erledigt das automatisch.
+
+### Pi Zero 2 W — Firefox-ESR-Kiosk
+
+Standard-X11-Setup mit Firefox ESR. Das Installationsskript richtet alles automatisch ein.
+
+> **Chromium** wurde geprüft, zeigt aber auf dem Pi Zero 2 W (512 MB RAM) eine nicht unterdrückbare Warnung wegen zu wenig Arbeitsspeicher. Firefox ESR hat diese Prüfung nicht.
+
+---
+
+## Hardware-Verdrahtung
+
+### JBD-BMS → Pi Zero
+
+Keine Verkabelung nötig — Bluetooth ist kabellos. BMS eingeschaltet und innerhalb von ~10 m des Pi halten.
+
+### Victron SmartSolar → Pi Zero (VE.Direct)
+
+Ein **VE.Direct-auf-USB**-Kabel wird benötigt (Victron-Teilenr. ASS030530010, ~15 €).
+
+```
+SmartSolar VE.Direct-Port  →  USB-Kabel  →  Pi-Zero-USB-Port
+```
+
+Das Kabel erscheint als `/dev/ttyUSB0`.
+
+---
+
+## Fehlerbehebung
+
+### Keine Daten auf dem Display
+
+Die Karten zeigen ein Status-Overlay — **Suche…**, **Getrennt** oder **Keine Daten** — wenn keine Messwerte verfügbar sind. Zur näheren Diagnose per SSH:
+
+```sh
+# Live-Serverprotokolle
+journalctl -u camper-monitor -f
+
+# Vollständiger Diagnoseschnappschuss
+curl -s localhost:3000/diagnostics | python3 -m json.tool
+```
+
+### BLE verbindet nicht (`nobleState: poweredOff`)
+
+Der Bluetooth-Adapter ist vorhanden, aber nicht eingeschaltet.
+
+```sh
+hciconfig
+sudo rfkill unblock bluetooth
+sudo hciconfig hci0 up
+sudo sed -i 's/#AutoEnable=true/AutoEnable=true/' /etc/bluetooth/main.conf
+sudo systemctl restart bluetooth
+```
+
+### BLE scannt, Gerät wird nicht gefunden
+
+```sh
+# Vom Batterie-Reader gesehene Geräte
+curl -s localhost:3000/diagnostics | python3 -c \
+  "import sys,json; [print(x) for x in json.load(sys.stdin)['battery']['devicesSeenInScan']]"
+```
+
+Falls das Gerät mit abweichender MAC erscheint, `configure.sh` erneut ausführen.
+
+### Starterbatterie verbindet langsam oder gar nicht
+
+Alle BLE-Reader teilen dieselbe Noble-Instanz. Wenn der Batterie-Reader die Verbindung zum JBD-BMS herstellt, ruft er `noble.stopScanning()` auf, was den Scan für alle anderen Reader unterbricht. Dies ist im Code behoben — nach dem Verbindungsaufbau wird der Scan sofort wieder gestartet. Bei anhaltenden Problemen Diagnose prüfen:
+
+```sh
+curl -s localhost:3000/diagnostics | python3 -m json.tool
+```
+
+`starter.connectAttempts`, `starter.devicesSeenInScan` und `starter.secondsSinceReading` prüfen.
+
+### Dienst-Neustart nicht zuverlässig
+
+Ein vollständiger Neustart ist zuverlässiger als `systemctl restart` bei BLE-Problemen:
+
+```sh
+sudo reboot
+```
+
+### Updates einspielen
+
+Nach dem Aktualisieren des Codes rsync ins Installationsverzeichnis und beide Dienste neu starten. Auf dem Pi Zero 2 W muss auch der Kiosk neu gestartet werden — Firefox hält das alte JS-Bundle im Speicher:
+
+```sh
+cd ~/camper-monitor && git pull && \
+  sudo rsync -a --exclude=node_modules --exclude=settings.yaml \
+    ~/camper-monitor/ /opt/camper-monitor/ && \
+  sudo systemctl restart camper-monitor kiosk
+```
+
+Auf dem Pi Zero W `kiosk` durch `ui-fb` ersetzen.
+
+### `kiosk`-Neustart läuft in Timeout
+
+Standardmäßig wartet systemd 90 s auf das Beenden von X11 und Firefox. `TimeoutStopSec=10` hinzufügen:
+
+```sh
+sudo sed -i '/^RestartSec=5/a TimeoutStopSec=10' /etc/systemd/system/kiosk.service
+sudo systemctl daemon-reload
+```
+
+`configure.sh` schreibt dies ab sofort automatisch.
+
+---
+
+## Konfigurationsreferenz
+
+| Einstellung | Ort | Beschreibung |
+|---|---|---|
+| `readers.battery.driver` | `settings.yaml` | `ble` oder `mock` |
+| `readers.battery.macAddress` | `settings.yaml` | BLE-MAC des JBD-BMS |
+| `readers.battery.pollInterval` | `settings.yaml` | Abfrageintervall in ms (Standard 5000) |
+| `readers.solar.driver` | `settings.yaml` | `vedirect`, `ble` oder `mock` |
+| `readers.solar.port` | `settings.yaml` | Serieller Port für VE.Direct (Standard `/dev/ttyUSB0`) |
+| `readers.solar.macAddress` | `settings.yaml` | BLE-MAC des SmartSolar (nur BLE-Treiber) |
+| `readers.solar.advertisementKey` | `settings.yaml` | 32-stelliger Hex-Schlüssel (nur BLE-Treiber) |
+| `readers.starter.driver` | `settings.yaml` | `bm6` oder `mock` — gesamten `starter:`-Block weglassen zum Deaktivieren |
+| `readers.starter.macAddress` | `settings.yaml` | BLE-MAC des intAct Battery-Guard / BM6 |
+| `readers.starter.pollInterval` | `settings.yaml` | Abfrageintervall in ms (Standard 5000) |
+| `server.port` | `settings.yaml` | HTTP-Port (Standard 3000) |
+| `ui.language` | `settings.yaml` | UI-Sprache: `en` (Englisch) oder `de` (Deutsch) |
+| `BATTERY_DRIVER` | `.env` | Überschreibt `readers.battery.driver` |
+| `SOLAR_DRIVER` | `.env` | Überschreibt `readers.solar.driver` |
+| `SOLAR_PORT` | `.env` | Überschreibt `readers.solar.port` |
+| `STARTER_DRIVER` | `.env` | Überschreibt `readers.starter.driver` |
+| `PORT` | `.env` | Überschreibt `server.port` |
+
+---
+
+## Skripte
+
+```sh
+npm run dev        # Entwicklung: Testdaten + Vite HMR
+npm start          # Produktion: liest Hardware, stellt erstellte UI bereit
+npm run build:ui   # React-UI nach packages/ui/dist/ erstellen
+```
+
+---
+
+## Einen neuen Reader hinzufügen
+
+Jeder Reader ist ein Paket, das `createReader(config)` exportiert und `{ start(), stop(), events }` zurückgibt. Emittierte Ereignisse: `data`, `connected`, `disconnected`, `error`.
+
+1. `packages/reader-<name>/` erstellen
+2. Interface implementieren (`packages/reader-battery/src/mock.js` als Vorlage kopieren)
+3. Den Treiberschlüssel in der jeweiligen `packages/reader-*/src/index.js` registrieren
+4. Treiber in `settings.yaml` setzen
+
+Keine Änderungen am Server oder der UI nötig.

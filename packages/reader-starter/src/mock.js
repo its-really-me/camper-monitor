@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-starter/mock.js
+ * Mock starter battery reader — simulates a 12 V lead-acid charge/idle cycle.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 const { EventEmitter } = require('events')

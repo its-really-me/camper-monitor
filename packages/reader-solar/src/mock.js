@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-solar/mock.js
+ * Mock solar reader — simulates PV power output based on time of day.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 const { EventEmitter } = require('events')

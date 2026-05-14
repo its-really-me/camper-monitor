@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — useLiveState.js
+ * useLiveState hook — subscribes to the /events SSE stream and returns live state.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 import { useState, useEffect } from 'react'
 
 export function useLiveState() {

@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Camper Monitor — system installer
+# Camper Monitor — install.sh
+# System installer — installs OS dependencies, clones the repo, and runs configure.sh.
 # Run from the cloned repo:  sudo bash scripts/install.sh
 # Or without cloning first:  curl -fsSL https://raw.githubusercontent.com/its-really-me/camper-monitor/main/scripts/install.sh | sudo bash
+#
+# © 2026 Kai Steuernagel
 set -euo pipefail
 
 # ── colours ────────────────────────────────────────────────────────────────

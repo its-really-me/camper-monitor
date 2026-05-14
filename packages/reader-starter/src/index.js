@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-starter/index.js
+ * Starter battery reader factory — selects BM6 BLE or mock driver from config.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 function createReader(config) {

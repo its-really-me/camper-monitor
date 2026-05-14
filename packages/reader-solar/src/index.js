@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-solar/index.js
+ * Solar reader factory — selects VE.Direct, BLE, or mock driver from config.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 function createReader(config) {

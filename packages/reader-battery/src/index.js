@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-battery/index.js
+ * Battery reader factory — selects BLE or mock driver from config.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 function createReader(config) {

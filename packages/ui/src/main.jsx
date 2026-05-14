@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — main.jsx
+ * React entry point — mounts App into #root.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'

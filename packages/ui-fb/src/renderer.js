@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — ui-fb/renderer.js
+ * Canvas renderer — draws battery, solar, and power flow cards onto a 1024×768 framebuffer.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 // All measurements in pixels, designed for 1024×768.

@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — ui-fb/index.js
+ * Framebuffer UI entry — SSE client, touch-based screen blanking, render loop for Pi Zero W.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 const fs                  = require('fs')

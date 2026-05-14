@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-battery/mock.js
+ * Mock battery reader — simulates a LiFePO4 charge/discharge cycle for dev/testing.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 const { EventEmitter } = require('events')

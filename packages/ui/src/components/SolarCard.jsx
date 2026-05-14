@@ -1,6 +1,14 @@
+/**
+ * Camper Monitor — SolarCard.jsx
+ * Solar charger card — PV input, battery side stats, charge mode badge.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 import { Sun } from 'lucide-react'
 import { useStale, fmtAge } from '../hooks/useStale'
 import { CardOverlay }      from './CardOverlay'
+import { useT, SOLAR_MODE_KEY } from '../i18n'
 
 function Stat({ label, value, color }) {
   return (
@@ -13,19 +21,16 @@ function Stat({ label, value, color }) {
   )
 }
 
-function modeBadge(mode) {
-  const map = {
-    'Bulk':            { bg: 'bg-yellow-900/60',  text: 'text-yellow-300'  },
-    'Absorption':      { bg: 'bg-amber-900/60',   text: 'text-amber-400'   },
-    'Float':           { bg: 'bg-emerald-900/60', text: 'text-emerald-400' },
-    'Equalize':        { bg: 'bg-blue-900/60',    text: 'text-blue-400'    },
-    'Auto Equalize':   { bg: 'bg-blue-900/60',    text: 'text-blue-400'    },
-    'Fault':           { bg: 'bg-red-900/60',     text: 'text-red-400'     },
-    'Off':             { bg: 'bg-slate-700/60',   text: 'text-slate-400'   },
-    'Starting Up':     { bg: 'bg-slate-700/60',   text: 'text-slate-400'   },
-    'External Control':{ bg: 'bg-purple-900/60',  text: 'text-purple-400'  },
-  }
-  return map[mode] ?? { bg: 'bg-slate-700/60', text: 'text-slate-400' }
+const MODE_COLORS = {
+  'Bulk':            { bg: 'bg-yellow-900/60',  text: 'text-yellow-300'  },
+  'Absorption':      { bg: 'bg-amber-900/60',   text: 'text-amber-400'   },
+  'Float':           { bg: 'bg-emerald-900/60', text: 'text-emerald-400' },
+  'Equalize':        { bg: 'bg-blue-900/60',    text: 'text-blue-400'    },
+  'Auto Equalize':   { bg: 'bg-blue-900/60',    text: 'text-blue-400'    },
+  'Fault':           { bg: 'bg-red-900/60',     text: 'text-red-400'     },
+  'Off':             { bg: 'bg-slate-700/60',   text: 'text-slate-400'   },
+  'Starting Up':     { bg: 'bg-slate-700/60',   text: 'text-slate-400'   },
+  'External Control':{ bg: 'bg-purple-900/60',  text: 'text-purple-400'  },
 }
 
 function fmtV(v) { return v != null ? `${v} V` : '—' }
@@ -33,20 +38,22 @@ function fmtA(a) { return a != null ? `${a} A` : '—' }
 function fmtW(w) { return w != null ? `${w} W` : '—' }
 
 export function SolarCard({ solar, connected }) {
-  const badge               = modeBadge(solar?.mode)
+  const t                     = useT()
   const { stale, ageSeconds } = useStale(solar?.ts)
+  const modeKey               = SOLAR_MODE_KEY[solar?.mode] ?? 'modeOff'
+  const modeColors            = MODE_COLORS[solar?.mode] ?? { bg: 'bg-slate-700/60', text: 'text-slate-400' }
 
-  let overlayTitle = null
+  let overlayTitle  = null
   let overlayDetail = null
   if (!solar) {
-    overlayTitle  = 'Scanning…'
-    overlayDetail = 'Looking for solar charger'
+    overlayTitle  = t('scanning')
+    overlayDetail = t('lookingForSolar')
   } else if (!connected) {
-    overlayTitle  = 'Disconnected'
-    overlayDetail = ageSeconds != null ? `Last data ${fmtAge(ageSeconds)} ago` : null
+    overlayTitle  = t('disconnected')
+    overlayDetail = ageSeconds != null ? t('lastDataAgo', { age: fmtAge(ageSeconds) }) : null
   } else if (stale) {
-    overlayTitle  = 'No data'
-    overlayDetail = `${fmtAge(ageSeconds)} since last reading`
+    overlayTitle  = t('noData')
+    overlayDetail = t('sinceLastReading', { age: fmtAge(ageSeconds) })
   }
 
   return (
@@ -55,19 +62,19 @@ export function SolarCard({ solar, connected }) {
       {/* Header */}
       <div className="flex items-center gap-2 shrink-0">
         <Sun size={20} className="text-slate-200 shrink-0" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-100">Solar Charger</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-100">{t('solarCharger')}</span>
         <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${connected ? 'bg-emerald-900/60 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>
-          {connected ? 'Live' : 'Offline'}
+          {connected ? t('live') : t('offline')}
         </span>
       </div>
 
       {/* PV section */}
       <div className="flex flex-col gap-1 shrink-0">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">PV Input</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">{t('pvInput')}</span>
         <div className="grid grid-cols-3 gap-2">
-          <Stat label="Voltage" value={fmtV(solar?.pvVoltage)} color="#facc15" />
-          <Stat label="Current" value={fmtA(solar?.pvCurrent)} color="#facc15" />
-          <Stat label="Power"   value={fmtW(solar?.pvPower)}   color="#facc15" />
+          <Stat label={t('voltage')} value={fmtV(solar?.pvVoltage)} color="#facc15" />
+          <Stat label={t('current')} value={fmtA(solar?.pvCurrent)} color="#facc15" />
+          <Stat label={t('power')}   value={fmtW(solar?.pvPower)}   color="#facc15" />
         </div>
       </div>
 
@@ -75,20 +82,20 @@ export function SolarCard({ solar, connected }) {
 
       {/* Battery side */}
       <div className="flex flex-col gap-1 flex-1 min-h-0">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">Battery Side</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">{t('batterySide')}</span>
         <div className="grid grid-cols-2 gap-2">
-          <Stat label="Current"    value={fmtA(solar?.batteryCurrent)} color="#60a5fa" />
-          <Stat label="Voltage"    value={fmtV(solar?.batteryVoltage)} color="#94a3b8" />
+          <Stat label={t('current')}    value={fmtA(solar?.batteryCurrent)} color="#60a5fa" />
+          <Stat label={t('voltage')}    value={fmtV(solar?.batteryVoltage)} color="#94a3b8" />
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <Stat label="Yield today" value={solar ? `${solar.yieldToday} kWh` : '—'} color="#34d399" />
-          <Stat label="MPPT"        value={solar?.mpptMode ?? '—'} color="#94a3b8" />
+          <Stat label={t('yieldToday')} value={solar ? `${solar.yieldToday} kWh` : '—'} color="#34d399" />
+          <Stat label={t('mppt')}       value={solar?.mpptMode ?? '—'} color="#94a3b8" />
         </div>
       </div>
 
       {/* Mode badge */}
-      <div className={`self-start text-xs font-semibold px-3 py-1 rounded-full ${badge.bg} ${badge.text}`}>
-        {solar?.mode ?? '—'}
+      <div className={`self-start text-xs font-semibold px-3 py-1 rounded-full ${modeColors.bg} ${modeColors.text}`}>
+        {t(modeKey)}
       </div>
     </div>
   )

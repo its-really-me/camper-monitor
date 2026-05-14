@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — CardOverlay.jsx
+ * Card overlay — dimmed backdrop for disconnected / no-data states.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 import { AlertTriangle } from 'lucide-react'
 
 export function CardOverlay({ title, detail }) {

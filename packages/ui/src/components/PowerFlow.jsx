@@ -1,14 +1,15 @@
-// Animated power flow: PV Panel → Battery → Load
+/**
+ * Camper Monitor — PowerFlow.jsx
+ * Animated power flow diagram — SVG arrows for PV → Battery → Load.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
+import { useT } from '../i18n'
 
 const W = 420
 const H = 160
-const THRESHOLD = 5   // W — below this the arrow is shown as idle
-
-const NODES = {
-  solar:   { cx: 60,  cy: 80, color: '#facc15', label: 'PV',      icon: 'sun'     },
-  battery: { cx: 210, cy: 80, color: '#34d399', label: 'Battery', icon: 'battery' },
-  load:    { cx: 360, cy: 80, color: '#c084fc', label: 'Load',    icon: 'zap'     },
-}
+const THRESHOLD = 5
 
 function fmtW(w) {
   if (w == null) return '—'
@@ -84,20 +85,26 @@ function Arrow({ x1, y1, x2, y2, power, color }) {
 }
 
 export function PowerFlow({ battery, solar }) {
+  const t = useT()
+
   const pvPower    = solar?.pvPower ?? null
   const battCharge = solar?.batteryCurrent != null && solar.batteryCurrent > 0
     ? solar.batteryCurrent * (solar.batteryVoltage ?? 12.6)
     : null
-  const loadPower  = battery?.status === 'discharging'
-    ? battery.power
-    : null
+  const loadPower  = battery?.status === 'discharging' ? battery.power : null
+
+  const NODES = {
+    solar:   { cx: 60,  cy: 80, color: '#facc15', label: t('pv'),      icon: 'sun'     },
+    battery: { cx: 210, cy: 80, color: '#34d399', label: t('battery'), icon: 'battery' },
+    load:    { cx: 360, cy: 80, color: '#c084fc', label: t('load'),    icon: 'zap'     },
+  }
 
   const { solar: sn, battery: bn, load: ln } = NODES
 
   return (
     <div className="rounded-xl p-3 bg-slate-800/60 border border-slate-700">
       <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 block mb-2">
-        Power Flow
+        {t('powerFlow')}
       </span>
       <div className="flex justify-center">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-lg" style={{ overflow: 'visible' }}>

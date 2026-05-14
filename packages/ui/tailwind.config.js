@@ -1,4 +1,11 @@
-/** @type {import('tailwindcss').Config} */
+/**
+ * Camper Monitor — tailwind.config.js
+ * Tailwind CSS config — content paths and custom color tokens.
+ *
+ * © 2026 Kai Steuernagel
+ *
+ * @type {import('tailwindcss').Config}
+ */
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   darkMode: 'class',

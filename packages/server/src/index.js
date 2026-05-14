@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — server/index.js
+ * Server entry point — loads config, wires readers to the API, starts HTTP server.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 require('dotenv').config()
@@ -49,12 +56,14 @@ function startNormalServer() {
     batteryConnected: false,
     solarConnected:   false,
     starterConnected: false,
+    language:         cfg.ui?.language ?? 'en',
     toJSON() {
       const out = {
         battery:          this.battery,
         solar:            this.solar,
         batteryConnected: this.batteryConnected,
         solarConnected:   this.solarConnected,
+        language:         this.language,
       }
       if (hasStarter) {
         out.starter          = this.starter

@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-solar/vedirect.js
+ * Victron VE.Direct text protocol reader — serial port 19200 8N1, checksum-verified blocks.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 // Victron VE.Direct text protocol reader

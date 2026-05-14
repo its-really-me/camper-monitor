@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — api.js
+ * Express API — SSE /events stream, /state, /diagnostics, and /setup web form.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 const path    = require('path')

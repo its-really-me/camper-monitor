@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — vite.config.js
+ * Vite build config — dev server with proxy to Node.js backend.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 

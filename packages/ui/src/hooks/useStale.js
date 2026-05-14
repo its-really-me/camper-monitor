@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — useStale.js
+ * useStale hook — detects readings older than a threshold and returns age in seconds.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 import { useState, useEffect } from 'react'
 
 export function fmtAge(seconds) {
