@@ -29,7 +29,7 @@ function createMockReader(config) {
 
     const temperature = +(20 + Math.random() * 10).toFixed(1)
     const charging    = voltage > 13.2
-    const soc         = charging ? null : voltageToSoc(voltage)
+    const soc         = voltageToSoc(voltage)
     const status      = charging ? 'charging' : 'idle'
 
     tick++
