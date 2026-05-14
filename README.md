@@ -441,6 +441,19 @@ cd ~/camper-monitor && git pull && \
   sudo systemctl restart camper-monitor kiosk
 ```
 
+The UI bundle (`packages/ui/dist/`) is pre-built and committed to git, so translation changes and other UI updates are included automatically — no rebuild step needed on the Pi.
+
+If `package.json` changed (new npm dependencies), also run after rsync:
+
+```sh
+cd /opt/camper-monitor && sudo -u camper npm install \
+  --workspace=packages/server \
+  --workspace=packages/reader-battery \
+  --workspace=packages/reader-solar \
+  --workspace=packages/reader-starter \
+  --omit=optional --loglevel=error
+```
+
 On the Pi Zero W (framebuffer renderer), replace `kiosk` with `ui-fb`.
 
 ### `kiosk` restart times out
@@ -808,6 +821,19 @@ cd ~/camper-monitor && git pull && \
   sudo rsync -a --exclude=node_modules --exclude=settings.yaml \
     ~/camper-monitor/ /opt/camper-monitor/ && \
   sudo systemctl restart camper-monitor kiosk
+```
+
+Das UI-Bundle (`packages/ui/dist/`) ist vorkompiliert und in git eingecheckt — Übersetzungsänderungen und andere UI-Updates sind automatisch enthalten, kein Neubau auf dem Pi nötig.
+
+Falls sich `package.json` geändert hat (neue npm-Abhängigkeiten), nach dem rsync zusätzlich ausführen:
+
+```sh
+cd /opt/camper-monitor && sudo -u camper npm install \
+  --workspace=packages/server \
+  --workspace=packages/reader-battery \
+  --workspace=packages/reader-solar \
+  --workspace=packages/reader-starter \
+  --omit=optional --loglevel=error
 ```
 
 Auf dem Pi Zero W `kiosk` durch `ui-fb` ersetzen.
