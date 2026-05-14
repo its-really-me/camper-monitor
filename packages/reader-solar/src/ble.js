@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-solar/ble.js
+ * Victron SmartSolar BLE reader — passive Instant Readout advertisement scanner.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 // Victron SmartSolar BLE reader — Instant Readout (passive advertisement scanning)

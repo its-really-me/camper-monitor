@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Camper Monitor — configuration wizard
+# Camper Monitor — configure.sh
+# Configuration wizard — writes settings.yaml, .env, and systemd service files.
 # Can be re-run at any time to update settings:  sudo bash scripts/configure.sh
+#
+# © 2026 Kai Steuernagel
 set -euo pipefail
 
 # ── colours ────────────────────────────────────────────────────────────────
@@ -128,6 +131,14 @@ ask "Screen blank timeout in minutes — 0 to disable (default: 3):"
 read -r _blank
 BLANK_TIMEOUT="${_blank:-3}"
 
+ask "UI language — en (English) or de (Deutsch) (default: en):"
+read -r UI_LANG
+UI_LANG="${UI_LANG:-en}"
+if [[ "$UI_LANG" != "en" && "$UI_LANG" != "de" ]]; then
+    warn "Unknown language '$UI_LANG' — defaulting to en."
+    UI_LANG="en"
+fi
+
 # ── write settings.yaml ──────────────────────────────────────────────────────
 header "Writing config files"
 
@@ -158,6 +169,9 @@ readers:
 $STARTER_YAML
 server:
   port: $SERVER_PORT
+
+ui:
+  language: $UI_LANG
 EOF
 success "settings.yaml"
 

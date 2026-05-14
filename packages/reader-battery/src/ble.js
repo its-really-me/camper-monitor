@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-battery/ble.js
+ * JBD BMS BLE driver — connects, polls basic info frame, and parses battery readings.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 // JBD BMS BLE reader

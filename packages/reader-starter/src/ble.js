@@ -1,3 +1,10 @@
+/**
+ * Camper Monitor — reader-starter/ble.js
+ * intAct Battery-Guard / BM6 BLE driver — AES-128-CBC encrypted GATT notifications.
+ *
+ * © 2026 Kai Steuernagel
+ */
+
 'use strict'
 
 // BM6 / intAct Battery-Guard BLE reader
