@@ -193,6 +193,12 @@ readers:
     pollInterval: 2000   # advertisements arrive ~every 1 s; this is the display refresh rate
 ```
 
+Leave `macAddress` empty to accept the first Victron Instant Readout advertisement seen — useful when the device MAC is unknown or uses a rotating private address:
+
+```yaml
+    macAddress: ""   # blank = accept any Victron SmartSolar
+```
+
 ### Step 4 — Enable Bluetooth on the Pi (if not already done)
 
 ```sh
@@ -414,13 +420,16 @@ If the target device appears but with a different MAC than configured, re-run `s
 
 ### Starter battery slow to connect or never connects
 
-All BLE readers share a single noble instance. When the battery reader connects to the JBD BMS it calls `noble.stopScanning()`, which silently kills the scan for all other readers. If both the JBD BMS and the BM6 are in range at the same time, whichever reader connects first can starve the other. This is resolved in the code (each reader resumes scanning after its own GATT connection is established), but if you observe the issue after a clean deploy, check the diagnostics:
+Check the diagnostics snapshot — look at `starter.connectAttempts`, `starter.devicesSeenInScan`, and `starter.secondsSinceReading`:
 
 ```sh
 curl -s localhost:3000/diagnostics | python3 -m json.tool
 ```
 
-Look at `starter.connectAttempts`, `starter.devicesSeenInScan`, and `starter.secondsSinceReading`. If `devicesSeenInScan` is empty after 30+ seconds the BM6 is not advertising — check it with the vendor app. If the BM6 appears in the scan list but `connectAttempts` stays at 0, the reader is not reaching its discover handler — restart the service.
+- `devicesSeenInScan` empty after 30 s → BM6 not advertising; check it with the vendor app
+- BM6 in scan list but `connectAttempts` stays at 0 → restart the service
+
+Root cause and fix: see [Bug-8 in Bug-fixes.md](Bug-fixes.md#bug-8).
 
 ### Service restart not reliable
 
@@ -458,35 +467,24 @@ On the Pi Zero W (framebuffer renderer), replace `kiosk` with `ui-fb`.
 
 ### Ctrl+Alt+F1 / VT switching doesn't work
 
-**Root cause:** On Raspberry Pi OS Bookworm, the kiosk systemd service does not create a logind session, so Xorg has no way to receive the "release your display" signal when the kernel requests a VT switch — `chvt` hangs indefinitely and keyboard shortcuts blink the cursor once but don't switch.
-
-**Fix:** install `xserver-xorg-legacy` and set `needs_root_rights=yes`, which makes Xorg use the setuid wrapper so it can handle VT ioctls directly without needing logind:
+Symptom: `sudo chvt 1` hangs, keyboard shortcut blinks the cursor once but doesn't switch. Diagnose with:
 
 ```sh
-sudo apt-get install -y xserver-xorg-legacy
-printf 'allowed_users=anybody\nneeds_root_rights=yes\n' | sudo tee /etc/X11/Xwrapper.config
-sudo reboot
+loginctl session-status   # kiosk session should appear; if only SSH is listed, see Bug-10
 ```
 
-`configure.sh` now does this automatically, so re-running the wizard also fixes it.
-
-**Reliable workaround** (works even without the fix): use SSH to stop X before switching consoles:
+Workaround (always works): stop X over SSH to release the display, then switch freely:
 
 ```sh
-sudo systemctl stop kiosk   # releases DRM, drops to console
-sudo systemctl start kiosk  # goes back to kiosk
+sudo systemctl stop kiosk   # drops to console
+sudo systemctl start kiosk  # back to kiosk
 ```
+
+Root cause and fix: see [Bug-10 in Bug-fixes.md](Bug-fixes.md#bug-10).
 
 ### `kiosk` restart times out
 
-By default systemd waits 90 s for X11 and Firefox to exit gracefully before killing them. Add `TimeoutStopSec=10` so systemd force-kills the process group after 10 s instead:
-
-```sh
-sudo sed -i '/^RestartSec=5/a TimeoutStopSec=10' /etc/systemd/system/kiosk.service
-sudo systemctl daemon-reload
-```
-
-`configure.sh` writes this automatically from now on, so re-running the wizard also fixes it.
+`configure.sh` sets `TimeoutStopSec=10` automatically. See [Bug-9 in Bug-fixes.md](Bug-fixes.md#bug-9) for the manual one-liner.
 
 ---
 
@@ -721,6 +719,12 @@ readers:
     pollInterval: 2000
 ```
 
+`macAddress` leer lassen, um die erste empfangene Victron-Instant-Readout-Werbung zu akzeptieren — sinnvoll wenn die MAC unbekannt ist oder eine rotierende Private Address verwendet wird:
+
+```yaml
+    macAddress: ""   # leer = beliebige Victron SmartSolar
+```
+
 ---
 
 ## MAC-Adressen finden
@@ -817,13 +821,16 @@ Falls das Gerät mit abweichender MAC erscheint, `configure.sh` erneut ausführe
 
 ### Starterbatterie verbindet langsam oder gar nicht
 
-Alle BLE-Reader teilen dieselbe Noble-Instanz. Wenn der Batterie-Reader die Verbindung zum JBD-BMS herstellt, ruft er `noble.stopScanning()` auf, was den Scan für alle anderen Reader unterbricht. Dies ist im Code behoben — nach dem Verbindungsaufbau wird der Scan sofort wieder gestartet. Bei anhaltenden Problemen Diagnose prüfen:
+Diagnoseschnappschuss prüfen — `starter.connectAttempts`, `starter.devicesSeenInScan` und `starter.secondsSinceReading` beachten:
 
 ```sh
 curl -s localhost:3000/diagnostics | python3 -m json.tool
 ```
 
-`starter.connectAttempts`, `starter.devicesSeenInScan` und `starter.secondsSinceReading` prüfen.
+- `devicesSeenInScan` nach 30 s leer → BM6 sendet nicht; mit der Hersteller-App prüfen
+- BM6 in der Scan-Liste, aber `connectAttempts` bleibt 0 → Dienst neu starten
+
+Ursache und Lösung: siehe [Bug-8 in Bug-fixes.md](Bug-fixes.md#bug-8).
 
 ### Dienst-Neustart nicht zuverlässig
 
@@ -861,35 +868,24 @@ Auf dem Pi Zero W `kiosk` durch `ui-fb` ersetzen.
 
 ### Ctrl+Alt+F1 / VT-Umschaltung funktioniert nicht
 
-**Ursache:** Auf Raspberry Pi OS Bookworm erstellt der kiosk-Systemd-Dienst keine logind-Session. Xorg erhält daher kein Signal, das Display freizugeben, wenn der Kernel eine VT-Umschaltung anfordert — `chvt` hängt, Tastaturkürzel blinken den Cursor kurz auf, schalten aber nicht um.
-
-**Lösung:** `xserver-xorg-legacy` installieren und `needs_root_rights=yes` setzen, damit Xorg den setuid-Wrapper nutzt und VT-ioctls direkt ohne logind ausführen kann:
+Symptom: `sudo chvt 1` hängt, Tastaturkürzel blinkt den Cursor kurz auf. Diagnose:
 
 ```sh
-sudo apt-get install -y xserver-xorg-legacy
-printf 'allowed_users=anybody\nneeds_root_rights=yes\n' | sudo tee /etc/X11/Xwrapper.config
-sudo reboot
+loginctl session-status   # kiosk-Session sollte erscheinen; fehlt sie, → Bug-10
 ```
 
-`configure.sh` erledigt das jetzt automatisch; erneutes Ausführen des Assistenten behebt das Problem ebenfalls.
-
-**Zuverlässige Übergangslösung** (funktioniert immer): Per SSH X11 stoppen, bevor die Konsole gewechselt wird:
+Übergangslösung (funktioniert immer): X per SSH stoppen, dann frei umschalten:
 
 ```sh
 sudo systemctl stop kiosk   # gibt DRM frei, landet auf der Konsole
 sudo systemctl start kiosk  # kehrt zum Kiosk zurück
 ```
 
+Ursache und Lösung: siehe [Bug-10 in Bug-fixes.md](Bug-fixes.md#bug-10).
+
 ### `kiosk`-Neustart läuft in Timeout
 
-Standardmäßig wartet systemd 90 s auf das Beenden von X11 und Firefox. `TimeoutStopSec=10` hinzufügen:
-
-```sh
-sudo sed -i '/^RestartSec=5/a TimeoutStopSec=10' /etc/systemd/system/kiosk.service
-sudo systemctl daemon-reload
-```
-
-`configure.sh` schreibt dies ab sofort automatisch.
+`configure.sh` setzt `TimeoutStopSec=10` automatisch. Manuelle Korrektur und Hintergründe: [Bug-9 in Bug-fixes.md](Bug-fixes.md#bug-9).
 
 ---
 

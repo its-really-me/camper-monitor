@@ -202,3 +202,29 @@ The server log showed `[solar] connected` immediately on boot even when the Vict
 The starter battery (BM6) sometimes took a very long time to connect or failed entirely. Root cause: `@abandonware/noble` is a singleton shared by all readers in the same process. When the battery reader (`reader-battery`) found the JBD BMS and called `noble.stopScanning()`, scanning stopped for all readers including the starter reader. The starter reader had no mechanism to detect this and would simply wait indefinitely for a discover event that never arrived.
 
 **Fix:** After the GATT connection is successfully established in both `reader-battery/src/ble.js` and `reader-starter/src/ble.js`, `noble.startScanning([], false)` is called immediately. This resumes scanning so the other reader's discover handler can still receive advertisements. A connected device does not require active scanning, so restarting the scan has no effect on the established connection.
+---
+
+## Bug-9 — `kiosk` service restart times out · Priority: Medium
+
+`sudo systemctl restart kiosk` hung for ~90 seconds before completing, sometimes failing entirely. Root cause: systemd's default `TimeoutStopSec` is 90 s. When kiosk is stopped, systemd sends SIGTERM to the `startx` process group and waits up to 90 s for Firefox and Xorg to exit gracefully. Firefox ESR on the Pi Zero 2 W routinely takes longer than a few seconds to shut down, causing the timeout.
+
+**Fix:** Added `TimeoutStopSec=10` to the `[Service]` section of `kiosk.service` in `configure.sh`. After 10 s systemd sends SIGKILL to the remaining processes, which always succeeds immediately. `configure.sh` writes this automatically; existing installs can apply it with:
+
+```sh
+sudo sed -i '/^RestartSec=5/a TimeoutStopSec=10' /etc/systemd/system/kiosk.service
+sudo systemctl daemon-reload
+```
+
+---
+
+## Bug-10 — Ctrl+Alt+F1 / VT switching hangs · Priority: Medium
+
+Pressing Ctrl+Alt+F1 (or running `sudo chvt 1` over SSH) caused the cursor to blink once and then hang indefinitely. Root cause: on Raspberry Pi OS Bookworm the kiosk systemd service does not register a logind session, so Xorg has no D-Bus channel to receive the kernel's VT-release signal. Xorg holds the DRM master and never calls `VT_RELDISP`, so `VT_WAITACTIVE` blocks forever. `loginctl session-status` confirmed only the SSH session existed — no kiosk session.
+
+**Fix:** Install `xserver-xorg-legacy` (provides the setuid Xorg wrapper) and write `needs_root_rights=yes` to `/etc/X11/Xwrapper.config`. This makes Xorg run with root privileges so it can handle VT ioctls directly via the kernel, bypassing logind entirely. `configure.sh` now does both steps automatically; existing installs:
+
+```sh
+sudo apt-get install -y xserver-xorg-legacy
+printf 'allowed_users=anybody\nneeds_root_rights=yes\n' | sudo tee /etc/X11/Xwrapper.config
+sudo reboot
+```
