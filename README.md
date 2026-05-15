@@ -456,6 +456,31 @@ cd /opt/camper-monitor && sudo -u camper npm install \
 
 On the Pi Zero W (framebuffer renderer), replace `kiosk` with `ui-fb`.
 
+### Ctrl+Alt+F1 / VT switching doesn't work
+
+With the vc4 KMS driver, the kernel requests X11 to release the display before switching consoles, but X11 won't release it unless it knows which logind seat/VT it owns. The fix writes the required env vars into `kiosk.service` and an Xorg config that explicitly allows VT switching. Re-run configure.sh, or apply manually:
+
+```sh
+# 1. Add seat binding to kiosk.service [Service] section
+sudo sed -i '/^Environment=DISPLAY/a Environment=XDG_SEAT=seat0\nEnvironment=XDG_VTNR=7' \
+    /etc/systemd/system/kiosk.service
+sudo systemctl daemon-reload
+
+# 2. Xorg ServerFlags
+sudo mkdir -p /etc/X11/xorg.conf.d
+printf 'Section "ServerFlags"\n    Option "AllowVTSwitch" "true"\nEndSection\n' \
+    | sudo tee /etc/X11/xorg.conf.d/99-kiosk.conf
+
+sudo reboot
+```
+
+**Reliable workaround** (always works even without the fix above): use SSH to stop X before switching consoles:
+
+```sh
+sudo systemctl stop kiosk   # releases DRM, drops to console
+sudo systemctl start kiosk  # goes back to kiosk
+```
+
 ### `kiosk` restart times out
 
 By default systemd waits 90 s for X11 and Firefox to exit gracefully before killing them. Add `TimeoutStopSec=10` so systemd force-kills the process group after 10 s instead:
@@ -837,6 +862,31 @@ cd /opt/camper-monitor && sudo -u camper npm install \
 ```
 
 Auf dem Pi Zero W `kiosk` durch `ui-fb` ersetzen.
+
+### Ctrl+Alt+F1 / VT-Umschaltung funktioniert nicht
+
+Mit dem vc4-KMS-Treiber fordert der Kernel X11 auf, das Display freizugeben, bevor die Konsole gewechselt wird — X11 gibt es aber nur frei, wenn es weiß, welchen logind-Seat und welche VT-Nummer es besitzt. Lösung: `configure.sh` erneut ausführen, oder manuell anwenden:
+
+```sh
+# 1. Seat-Bindung in kiosk.service [Service] eintragen
+sudo sed -i '/^Environment=DISPLAY/a Environment=XDG_SEAT=seat0\nEnvironment=XDG_VTNR=7' \
+    /etc/systemd/system/kiosk.service
+sudo systemctl daemon-reload
+
+# 2. Xorg ServerFlags
+sudo mkdir -p /etc/X11/xorg.conf.d
+printf 'Section "ServerFlags"\n    Option "AllowVTSwitch" "true"\nEndSection\n' \
+    | sudo tee /etc/X11/xorg.conf.d/99-kiosk.conf
+
+sudo reboot
+```
+
+**Zuverlässige Übergangslösung** (funktioniert immer): Per SSH X11 stoppen, bevor die Konsole gewechselt wird:
+
+```sh
+sudo systemctl stop kiosk   # gibt DRM frei, landet auf der Konsole
+sudo systemctl start kiosk  # kehrt zum Kiosk zurück
+```
 
 ### `kiosk`-Neustart läuft in Timeout
 

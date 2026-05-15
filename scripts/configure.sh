@@ -300,6 +300,8 @@ StandardInput=tty
 StandardOutput=journal
 StandardError=journal
 Environment=DISPLAY=:0
+Environment=XDG_SEAT=seat0
+Environment=XDG_VTNR=7
 ExecStartPre=-/bin/rm -f /tmp/.X0-lock
 ExecStart=/usr/bin/startx -- vt7
 Restart=always
@@ -312,6 +314,15 @@ EOF
     systemctl daemon-reload
     systemctl enable kiosk
     success "kiosk.service enabled"
+
+    info "Xorg: enabling VT switching..."
+    mkdir -p /etc/X11/xorg.conf.d
+    cat > /etc/X11/xorg.conf.d/99-kiosk.conf << 'XORGCONF'
+Section "ServerFlags"
+    Option "AllowVTSwitch" "true"
+EndSection
+XORGCONF
+    success "Xorg config written (/etc/X11/xorg.conf.d/99-kiosk.conf)"
 
     # Clean up getty autologin drop-in if present from a previous install
     rm -f /etc/systemd/system/getty@tty7.service.d/autologin.conf
