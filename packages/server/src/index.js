@@ -160,9 +160,20 @@ function logReaderDiag(name, d) {
       : d.nobleState === 'poweredOn' ? `scanning (${d.devicesSeenTotal ?? d.devicesSeenInScan.length} devices seen)` : d.nobleState
     msg = `[diag:${name}] BLE ${conn} · ${age} · ok=${d.parseOk} err=${d.parseErrors}`
   } else if (d.driver === 'ble') {
-    const conn = d.nobleState === 'poweredOn'
-      ? `scanning (${d.devicesSeenTotal ?? 0} devices seen) · adv=${d.advertisementsTotal} victron=${d.victronIdPassed} solar=${d.solarChargerPassed}`
-      : d.nobleState
+    let conn
+    if (d.nobleState !== 'poweredOn') {
+      conn = d.nobleState
+    } else if (d.macFilterPassed > 0 && d.victronIdPassed === 0) {
+      const m = d.lastMacMatch
+      const why = d.macFilterNoMfrData > 0
+        ? 'no manufacturer data in advertisement'
+        : d.macFilterWrongId > 0
+          ? `wrong company ID: ${m?.companyId} (expected ${m?.expectedCompanyId})`
+          : 'advertisement data rejected'
+      conn = `device found (MAC matched ${d.macFilterPassed}×) — ${why}`
+    } else {
+      conn = `scanning (${d.devicesSeenTotal ?? 0} devices seen) · adv=${d.advertisementsTotal} victron=${d.victronIdPassed} solar=${d.solarChargerPassed}`
+    }
     msg = `[diag:${name}] BLE ${conn} · ${age} · decrypt-err=${d.decryptErrors} parse-err=${d.parseErrors}`
   } else if (d.driver === 'vedirect') {
     msg = `[diag:${name}] VE.Direct ${d.portPath} ${d.portOpen ? 'open' : 'closed'} · ${age} · blocks=${d.blocksTotal} crc-err=${d.checksumErrors}`
