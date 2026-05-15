@@ -94,7 +94,7 @@ function createBleReader(config) {
     } else {
       diag.devicesSeenTotal++
       diag.recentDevices.push({ address: addr, name, ts: Date.now() })
-      if (diag.recentDevices.length > 10) diag.recentDevices.shift()
+      if (diag.recentDevices.length > 50) diag.recentDevices.shift()
     }
   }
 

@@ -96,7 +96,7 @@ function createBleReader(config) {
     } else {
       diag.devicesSeenTotal++
       diag.devicesSeenInScan.push({ address: addr, name, ts: Date.now() })
-      if (diag.devicesSeenInScan.length > 10) diag.devicesSeenInScan.shift()
+      if (diag.devicesSeenInScan.length > 50) diag.devicesSeenInScan.shift()
     }
   }
 
