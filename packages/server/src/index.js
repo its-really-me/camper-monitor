@@ -152,16 +152,16 @@ function logReaderDiag(name, d) {
   if (d.driver === 'bm6') {
     const conn = (d.connectedAt && !d.disconnectedAt)
       ? 'connected'
-      : d.nobleState === 'poweredOn' ? `scanning (${d.devicesSeenInScan.length} devices seen)` : d.nobleState
+      : d.nobleState === 'poweredOn' ? `scanning (${d.devicesSeenTotal ?? d.devicesSeenInScan.length} devices seen)` : d.nobleState
     msg = `[diag:${name}] BM6 ${conn} · ${age} · ok=${d.parseOk} err=${d.parseErrors}`
   } else if (d.driver === 'ble' && 'connectAttempts' in d) {
     const conn = (d.connectedAt && !d.disconnectedAt)
       ? 'connected'
-      : d.nobleState === 'poweredOn' ? `scanning (${d.devicesSeenInScan.length} devices seen)` : d.nobleState
+      : d.nobleState === 'poweredOn' ? `scanning (${d.devicesSeenTotal ?? d.devicesSeenInScan.length} devices seen)` : d.nobleState
     msg = `[diag:${name}] BLE ${conn} · ${age} · ok=${d.parseOk} err=${d.parseErrors}`
   } else if (d.driver === 'ble') {
     const conn = d.nobleState === 'poweredOn'
-      ? `scanning · adv=${d.advertisementsTotal} victron=${d.victronIdPassed} solar=${d.solarChargerPassed}`
+      ? `scanning (${d.devicesSeenTotal ?? 0} devices seen) · adv=${d.advertisementsTotal} victron=${d.victronIdPassed} solar=${d.solarChargerPassed}`
       : d.nobleState
     msg = `[diag:${name}] BLE ${conn} · ${age} · decrypt-err=${d.decryptErrors} parse-err=${d.parseErrors}`
   } else if (d.driver === 'vedirect') {

@@ -72,6 +72,7 @@ function createBleReader(config) {
     nobleState:           'unknown',
     scanStartedAt:        null,
     devicesSeenInScan:    [],   // ring buffer, last 10 unique addresses
+    devicesSeenTotal:     0,
     lastMatchAt:          null,
     connectAttempts:      0,
     connectedAt:          null,
@@ -93,6 +94,7 @@ function createBleReader(config) {
     if (existing) {
       existing.ts = Date.now()
     } else {
+      diag.devicesSeenTotal++
       diag.devicesSeenInScan.push({ address: addr, name, ts: Date.now() })
       if (diag.devicesSeenInScan.length > 10) diag.devicesSeenInScan.shift()
     }
@@ -230,6 +232,7 @@ function createBleReader(config) {
         targetMac:            mac || '(any JBD/BMS)',
         scanStartedAt:        diag.scanStartedAt,
         devicesSeenInScan:    diag.devicesSeenInScan,
+        devicesSeenTotal:     diag.devicesSeenTotal,
         lastMatchAt:          diag.lastMatchAt,
         connectAttempts:      diag.connectAttempts,
         connectedAt:          diag.connectedAt,

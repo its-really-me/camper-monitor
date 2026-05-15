@@ -62,7 +62,8 @@ function parseSolarCharger(decrypted) {
 
 function createBleReader(config) {
   const events = new EventEmitter()
-  const mac    = (config.macAddress ?? '').toLowerCase().replace(/:/g, '')
+  const macRaw = (config.macAddress ?? '').toLowerCase()
+  const mac    = macRaw.replace(/:/g, '')
   const keyHex = (config.advertisementKey ?? '').replace(/\s/g, '')
   let noble    = null
   let running  = false
@@ -81,6 +82,7 @@ function createBleReader(config) {
     lastReading:         null,
     // last 10 unique addresses seen (for spotting the target in scan)
     recentDevices:       [],
+    devicesSeenTotal:    0,   // total unique addresses ever seen (never decrements)
   }
 
   function noteDevice(peripheral) {
@@ -90,6 +92,7 @@ function createBleReader(config) {
     if (existing) {
       existing.ts = Date.now()
     } else {
+      diag.devicesSeenTotal++
       diag.recentDevices.push({ address: addr, name, ts: Date.now() })
       if (diag.recentDevices.length > 10) diag.recentDevices.shift()
     }
@@ -181,10 +184,11 @@ function createBleReader(config) {
       return {
         driver:              'ble',
         nobleState:          diag.nobleState,
-        targetMac:           mac || '(any Victron)',
+        targetMac:           macRaw || '(any Victron)',
         keyConfigured:       keyHex.length === 32,
         scanStartedAt:       diag.scanStartedAt,
         recentDevices:       diag.recentDevices,
+        devicesSeenTotal:    diag.devicesSeenTotal,
         advertisementsTotal: diag.advertisementsTotal,
         macFilterPassed:     diag.macFilterPassed,
         victronIdPassed:     diag.victronIdPassed,
