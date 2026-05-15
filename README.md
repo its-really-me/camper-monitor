@@ -458,23 +458,19 @@ On the Pi Zero W (framebuffer renderer), replace `kiosk` with `ui-fb`.
 
 ### Ctrl+Alt+F1 / VT switching doesn't work
 
-With the vc4 KMS driver, the kernel requests X11 to release the display before switching consoles, but X11 won't release it unless it knows which logind seat/VT it owns. The fix writes the required env vars into `kiosk.service` and an Xorg config that explicitly allows VT switching. Re-run configure.sh, or apply manually:
+**Root cause:** On Raspberry Pi OS Bookworm, the kiosk systemd service does not create a logind session, so Xorg has no way to receive the "release your display" signal when the kernel requests a VT switch — `chvt` hangs indefinitely and keyboard shortcuts blink the cursor once but don't switch.
+
+**Fix:** install `xserver-xorg-legacy` and set `needs_root_rights=yes`, which makes Xorg use the setuid wrapper so it can handle VT ioctls directly without needing logind:
 
 ```sh
-# 1. Add seat binding to kiosk.service [Service] section
-sudo sed -i '/^Environment=DISPLAY/a Environment=XDG_SEAT=seat0\nEnvironment=XDG_VTNR=7' \
-    /etc/systemd/system/kiosk.service
-sudo systemctl daemon-reload
-
-# 2. Xorg ServerFlags
-sudo mkdir -p /etc/X11/xorg.conf.d
-printf 'Section "ServerFlags"\n    Option "AllowVTSwitch" "true"\nEndSection\n' \
-    | sudo tee /etc/X11/xorg.conf.d/99-kiosk.conf
-
+sudo apt-get install -y xserver-xorg-legacy
+printf 'allowed_users=anybody\nneeds_root_rights=yes\n' | sudo tee /etc/X11/Xwrapper.config
 sudo reboot
 ```
 
-**Reliable workaround** (always works even without the fix above): use SSH to stop X before switching consoles:
+`configure.sh` now does this automatically, so re-running the wizard also fixes it.
+
+**Reliable workaround** (works even without the fix): use SSH to stop X before switching consoles:
 
 ```sh
 sudo systemctl stop kiosk   # releases DRM, drops to console
@@ -865,21 +861,17 @@ Auf dem Pi Zero W `kiosk` durch `ui-fb` ersetzen.
 
 ### Ctrl+Alt+F1 / VT-Umschaltung funktioniert nicht
 
-Mit dem vc4-KMS-Treiber fordert der Kernel X11 auf, das Display freizugeben, bevor die Konsole gewechselt wird — X11 gibt es aber nur frei, wenn es weiß, welchen logind-Seat und welche VT-Nummer es besitzt. Lösung: `configure.sh` erneut ausführen, oder manuell anwenden:
+**Ursache:** Auf Raspberry Pi OS Bookworm erstellt der kiosk-Systemd-Dienst keine logind-Session. Xorg erhält daher kein Signal, das Display freizugeben, wenn der Kernel eine VT-Umschaltung anfordert — `chvt` hängt, Tastaturkürzel blinken den Cursor kurz auf, schalten aber nicht um.
+
+**Lösung:** `xserver-xorg-legacy` installieren und `needs_root_rights=yes` setzen, damit Xorg den setuid-Wrapper nutzt und VT-ioctls direkt ohne logind ausführen kann:
 
 ```sh
-# 1. Seat-Bindung in kiosk.service [Service] eintragen
-sudo sed -i '/^Environment=DISPLAY/a Environment=XDG_SEAT=seat0\nEnvironment=XDG_VTNR=7' \
-    /etc/systemd/system/kiosk.service
-sudo systemctl daemon-reload
-
-# 2. Xorg ServerFlags
-sudo mkdir -p /etc/X11/xorg.conf.d
-printf 'Section "ServerFlags"\n    Option "AllowVTSwitch" "true"\nEndSection\n' \
-    | sudo tee /etc/X11/xorg.conf.d/99-kiosk.conf
-
+sudo apt-get install -y xserver-xorg-legacy
+printf 'allowed_users=anybody\nneeds_root_rights=yes\n' | sudo tee /etc/X11/Xwrapper.config
 sudo reboot
 ```
+
+`configure.sh` erledigt das jetzt automatisch; erneutes Ausführen des Assistenten behebt das Problem ebenfalls.
 
 **Zuverlässige Übergangslösung** (funktioniert immer): Per SSH X11 stoppen, bevor die Konsole gewechselt wird:
 

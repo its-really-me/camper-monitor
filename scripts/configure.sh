@@ -322,7 +322,12 @@ Section "ServerFlags"
     Option "AllowVTSwitch" "true"
 EndSection
 XORGCONF
-    success "Xorg config written (/etc/X11/xorg.conf.d/99-kiosk.conf)"
+    # needs_root_rights=yes: Xorg runs via setuid wrapper so it can handle VT
+    # ioctls directly. Without this, RPi OS Bookworm does not create a logind
+    # session for the kiosk service, leaving X with no way to release the DRM
+    # master when a VT switch is requested (chvt hangs indefinitely).
+    printf 'allowed_users=anybody\nneeds_root_rights=yes\n' > /etc/X11/Xwrapper.config
+    success "Xorg config written (VT switching + root rights)"
 
     # Clean up getty autologin drop-in if present from a previous install
     rm -f /etc/systemd/system/getty@tty7.service.d/autologin.conf
