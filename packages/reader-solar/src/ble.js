@@ -73,6 +73,9 @@ function createBleReader(config) {
     scanStartedAt:       null,
     advertisementsTotal: 0,
     macFilterPassed:     0,
+    macFilterNoMfrData:  0,
+    macFilterWrongId:    0,
+    lastMacMatch:        null,
     victronIdPassed:     0,
     solarChargerPassed:  0,
     decryptErrors:       0,
@@ -107,10 +110,17 @@ function createBleReader(config) {
     diag.macFilterPassed++
 
     const mfr = peripheral.advertisement?.manufacturerData
-    if (!mfr || mfr.length < 7) return
+    diag.lastMacMatch = {
+      ts:               Date.now(),
+      hasMfrData:       !!(mfr && mfr.length >= 2),
+      mfrHex:           mfr?.toString('hex') ?? null,
+      companyId:        (mfr?.length >= 2) ? `0x${mfr.readUInt16LE(0).toString(16).padStart(4, '0')}` : null,
+      expectedCompanyId: `0x${VICTRON_COMPANY_ID.toString(16).padStart(4, '0')}`,
+    }
+    if (!mfr || mfr.length < 7) { diag.macFilterNoMfrData++; return }
 
     const companyId = mfr.readUInt16LE(0)
-    if (companyId !== VICTRON_COMPANY_ID) return
+    if (companyId !== VICTRON_COMPANY_ID) { diag.macFilterWrongId++; return }
     diag.victronIdPassed++
 
     if (mfr[2] !== RECORD_TYPE_SOLAR_CHARGER) return
@@ -186,11 +196,15 @@ function createBleReader(config) {
         nobleState:          diag.nobleState,
         targetMac:           macRaw || '(any Victron)',
         keyConfigured:       keyHex.length === 32,
+        deviceFound:         diag.macFilterPassed > 0,
         scanStartedAt:       diag.scanStartedAt,
         recentDevices:       diag.recentDevices,
         devicesSeenTotal:    diag.devicesSeenTotal,
         advertisementsTotal: diag.advertisementsTotal,
         macFilterPassed:     diag.macFilterPassed,
+        macFilterNoMfrData:  diag.macFilterNoMfrData,
+        macFilterWrongId:    diag.macFilterWrongId,
+        lastMacMatch:        diag.lastMacMatch,
         victronIdPassed:     diag.victronIdPassed,
         solarChargerPassed:  diag.solarChargerPassed,
         decryptErrors:       diag.decryptErrors,
