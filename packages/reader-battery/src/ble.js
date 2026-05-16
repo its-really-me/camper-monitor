@@ -154,17 +154,26 @@ function createBleReader(config) {
 
     p.connect(err => {
       if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `connect: ${err.message}`; return scheduleReconnect() }
-      // Discover all services — if ff00 isn't found we log what IS there to identify the correct UUID
-      p.discoverServices([], (err, services) => {
+      // Fast path: filter for known JBD service UUID
+      p.discoverServices([SERVICE_UUID], (err, services) => {
         if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `discoverServices: ${err.message}`; return scheduleReconnect() }
-        const target = services?.find(s => s.uuid === SERVICE_UUID)
-        if (!target) {
-          clearTimeout(connectTimer)
-          connecting = false; diag.connectingAt = null
-          diag.lastConnectError = `service ${SERVICE_UUID} not found; device has: ${(services ?? []).map(s => s.uuid).join(',')}`
-          p.disconnect(); return scheduleReconnect()
+        if (services?.length) {
+          // Service found — proceed directly to characteristics
+          continueWithService(services[0])
+        } else {
+          // Not a JBD BMS — enumerate all services to identify the correct UUID
+          p.discoverServices([], (err2, all) => {
+            clearTimeout(connectTimer)
+            connecting = false; diag.connectingAt = null
+            if (err2) { diag.lastConnectError = `discoverServices(all): ${err2.message}`; return scheduleReconnect() }
+            diag.lastConnectError = `service ${SERVICE_UUID} not found; device has: ${(all ?? []).map(s => s.uuid).join(',')}`
+            p.disconnect(); scheduleReconnect()
+          })
         }
-        target.discoverCharacteristics([WRITE_UUID, NOTIFY_UUID], (err, chars) => {
+      })
+
+      function continueWithService(svc) {
+        svc.discoverCharacteristics([WRITE_UUID, NOTIFY_UUID], (err, chars) => {
           clearTimeout(connectTimer)
           if (err) { connecting = false; diag.connectingAt = null; diag.lastConnectError = `discoverCharacteristics: ${err.message}`; return scheduleReconnect() }
           const wc = chars.find(c => c.uuid === WRITE_UUID)
@@ -187,7 +196,7 @@ function createBleReader(config) {
           poll()
           pollTimer = setInterval(poll, interval)
         })
-      })
+      }
     })
     p.on('disconnect', () => {
       clearTimeout(connectTimer)
