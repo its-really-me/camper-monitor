@@ -34,7 +34,7 @@ const CS_MODES = {
 
 function decryptPayload(encrypted, keyHex, iv) {
   const nonce = Buffer.alloc(16)
-  nonce.writeUInt16LE(iv, 0)        // 2-byte IV at start, remaining 14 bytes = 0
+  if (iv !== 0) nonce.writeUInt16LE(iv, 0)   // iv=0 → all-zero nonce
   const key     = Buffer.from(keyHex, 'hex')
   const cipher  = crypto.createDecipheriv('aes-128-ctr', key, nonce)
   return Buffer.concat([cipher.update(encrypted), cipher.final()])
@@ -139,17 +139,21 @@ function createBleReader(config) {
       return
     }
 
-    // For record type 0x10 (newer firmware) the IV/data byte offsets may differ;
-    // try [iv@4,enc@6] (standard), [iv@3,enc@5], [iv@5,enc@7] in order.
+    // For record type 0x10 (newer firmware) the IV/data byte offsets may differ.
+    // null ivOff = zero nonce (all-zero 16-byte counter).
+    // Try standard [iv@4,enc@6] first, then fallbacks including zero-nonce with enc@7.
     const candidates = mfr[2] === 0x10
-      ? [[4, 6], [3, 5], [5, 7]]
+      ? [[4, 6], [3, 5], [5, 7], [3, 7], [null, 7]]
       : [[4, 6]]
 
     let reading = null
     for (const [ivOff, encOff] of candidates) {
-      if (reading || ivOff + 1 >= mfr.length || encOff >= mfr.length) break
+      if (reading) break
+      if (ivOff !== null && ivOff + 1 >= mfr.length) continue
+      if (encOff >= mfr.length) continue
       try {
-        const dec = decryptPayload(mfr.slice(encOff), keyHex, mfr.readUInt16LE(ivOff))
+        const iv  = ivOff === null ? 0 : mfr.readUInt16LE(ivOff)
+        const dec = decryptPayload(mfr.slice(encOff), keyHex, iv)
         diag.lastDecryptedHex = dec.toString('hex')
         reading = parseSolarCharger(dec)
       } catch (e) {
