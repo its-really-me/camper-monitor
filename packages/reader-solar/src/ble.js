@@ -17,7 +17,8 @@ const { EventEmitter } = require('events')
 const crypto           = require('crypto')
 
 const VICTRON_COMPANY_ID          = 0x02E1
-const RECORD_TYPE_SOLAR_CHARGER   = 0x01
+// 0x01 = older firmware; 0x10 = newer firmware (devices manufactured ~2024+)
+const SOLAR_CHARGER_RECORD_TYPES  = new Set([0x01, 0x10])
 
 const CS_MODES = {
   0:   'Off',
@@ -123,7 +124,7 @@ function createBleReader(config) {
     if (companyId !== VICTRON_COMPANY_ID) { diag.macFilterWrongId++; return }
     diag.victronIdPassed++
 
-    if (mfr[2] !== RECORD_TYPE_SOLAR_CHARGER) return
+    if (!SOLAR_CHARGER_RECORD_TYPES.has(mfr[2])) return
     diag.solarChargerPassed++
 
     if (!keyHex || keyHex.length !== 32) {
