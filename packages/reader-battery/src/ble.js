@@ -76,6 +76,7 @@ function createBleReader(config) {
     lastMatchAt:          null,
     connectAttempts:      0,
     connectingAt:         null,
+    connectL2At:          null,   // set when p.connect() callback fires (L2 link up)
     connectedAt:          null,
     disconnectedAt:       null,
     reconnectScheduledAt: null,
@@ -145,15 +146,20 @@ function createBleReader(config) {
     // Abort if connect/GATT discovery hangs (device moved away after advertising)
     let connectTimer = setTimeout(() => {
       if (!connecting) return
+      const hadL2 = diag.connectL2At !== null
       connecting = false
       diag.connectingAt    = null
-      diag.lastConnectError = 'connect timeout (30s)'
+      diag.connectL2At     = null
+      diag.lastConnectError = hadL2
+        ? 'connect timeout (30s) — GATT discovery hung after L2 link was up'
+        : 'connect timeout (30s) — p.connect() never called back (L2 hang)'
       p.disconnect()
       scheduleReconnect()
     }, 30000)
 
     p.connect(err => {
-      if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `connect: ${err.message}`; return scheduleReconnect() }
+      if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.connectL2At = null; diag.lastConnectError = `connect: ${err.message}`; return scheduleReconnect() }
+      diag.connectL2At = Date.now()   // L2 link is up; GATT discovery starts now
       // Fast path: filter for known JBD service UUID
       p.discoverServices([SERVICE_UUID], (err, services) => {
         if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `discoverServices: ${err.message}`; return scheduleReconnect() }
@@ -202,6 +208,7 @@ function createBleReader(config) {
       clearTimeout(connectTimer)
       connecting = false
       diag.connectingAt   = null
+      diag.connectL2At    = null
       diag.disconnectedAt = Date.now()
       events.emit('disconnected')
       clearInterval(pollTimer)
@@ -271,6 +278,7 @@ function createBleReader(config) {
         lastMatchAt:          diag.lastMatchAt,
         connectAttempts:      diag.connectAttempts,
         connectingAt:         diag.connectingAt,
+        connectL2At:          diag.connectL2At,
         lastConnectError:     diag.lastConnectError,
         connectedAt:          diag.connectedAt,
         disconnectedAt:       diag.disconnectedAt,
