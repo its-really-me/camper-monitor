@@ -48,6 +48,12 @@ function parseSolarCharger(decrypted) {
   const yieldToday = decrypted.readUInt16LE(6) / 100   // 10 Wh → kWh
   const pvPower    = decrypted.readUInt16LE(8)          // W
 
+  // Sanity check — wrong key produces garbage that passes length check
+  if (battV < 0 || battV > 80)       return null   // 0-80 V covers all Victron battery systems
+  if (Math.abs(battI) > 200)         return null   // SmartSolar max output is 100 A
+  if (pvPower > 10000)               return null   // generous upper bound for BLE-connected chargers
+  if (yieldToday > 100)              return null   // 100 kWh/day is unreachable
+
   return {
     pvVoltage:      null,   // not in BLE advertisement
     pvPower,
