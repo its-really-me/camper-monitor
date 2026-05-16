@@ -90,7 +90,8 @@ function createBleReader(config) {
     readingsTotal:       0,
     lastReadingAt:       null,
     lastReading:         null,
-    lastDecryptedHex:    null,   // raw decrypted bytes for byte-layout debugging
+    lastDecryptedHex:       null,   // raw decrypted bytes for byte-layout debugging
+    lastCandidateAttempts:  null,   // [{ivOff, encOff, hex, ok}] for each candidate tried
     // last 10 unique addresses seen (for spotting the target in scan)
     recentDevices:       [],
     devicesSeenTotal:    0,   // total unique addresses ever seen (never decrements)
@@ -139,14 +140,15 @@ function createBleReader(config) {
       return
     }
 
-    // For record type 0x10 (newer firmware) the IV/data byte offsets may differ.
-    // null ivOff = zero nonce (all-zero 16-byte counter).
-    // Try standard [iv@4,enc@6] first, then fallbacks including zero-nonce with enc@7.
+    // For record type 0x10 (newer firmware) byte 6 appears to be a header/flags byte;
+    // encrypted data starts at byte 7. Try [4,7] (standard IV position, data@7) first.
+    // null ivOff = zero nonce (all-zero 16-byte nonce).
     const candidates = mfr[2] === 0x10
-      ? [[4, 6], [3, 5], [5, 7], [3, 7], [null, 7]]
+      ? [[4, 7], [4, 6], [3, 5], [5, 7], [3, 7], [null, 7]]
       : [[4, 6]]
 
     let reading = null
+    diag.lastCandidateAttempts = []
     for (const [ivOff, encOff] of candidates) {
       if (reading) break
       if (ivOff !== null && ivOff + 1 >= mfr.length) continue
@@ -154,9 +156,12 @@ function createBleReader(config) {
       try {
         const iv  = ivOff === null ? 0 : mfr.readUInt16LE(ivOff)
         const dec = decryptPayload(mfr.slice(encOff), keyHex, iv)
-        diag.lastDecryptedHex = dec.toString('hex')
+        const hex = dec.toString('hex')
+        diag.lastDecryptedHex = hex
         reading = parseSolarCharger(dec)
+        diag.lastCandidateAttempts.push({ ivOff, encOff, hex, ok: !!reading })
       } catch (e) {
+        diag.lastCandidateAttempts.push({ ivOff, encOff, hex: null, ok: false })
         diag.decryptErrors++
         events.emit('error', e)
       }
@@ -234,8 +239,9 @@ function createBleReader(config) {
         readingsTotal:       diag.readingsTotal,
         lastReadingAt:       diag.lastReadingAt,
         lastReading:         diag.lastReading,
-        lastDecryptedHex:    diag.lastDecryptedHex,
-        secondsSinceReading: diag.lastReadingAt ? +((Date.now() - diag.lastReadingAt) / 1000).toFixed(1) : null,
+        lastDecryptedHex:       diag.lastDecryptedHex,
+        lastCandidateAttempts:  diag.lastCandidateAttempts,
+        secondsSinceReading:    diag.lastReadingAt ? +((Date.now() - diag.lastReadingAt) / 1000).toFixed(1) : null,
       }
     },
     events,
