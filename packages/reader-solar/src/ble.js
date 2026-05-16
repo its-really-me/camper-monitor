@@ -139,24 +139,33 @@ function createBleReader(config) {
       return
     }
 
-    const iv        = mfr.readUInt16LE(4)
-    const encrypted = mfr.slice(6)
-    try {
-      const decrypted = decryptPayload(encrypted, keyHex, iv)
-      diag.lastDecryptedHex = decrypted.toString('hex')
-      const reading   = parseSolarCharger(decrypted)
-      if (reading) {
-        diag.readingsTotal++
-        diag.lastReadingAt = Date.now()
-        diag.lastReading   = reading
-        if (!everConnected) { everConnected = true; events.emit('connected') }
-        events.emit('data', reading)
-      } else {
-        diag.parseErrors++
+    // For record type 0x10 (newer firmware) the IV/data byte offsets may differ;
+    // try [iv@4,enc@6] (standard), [iv@3,enc@5], [iv@5,enc@7] in order.
+    const candidates = mfr[2] === 0x10
+      ? [[4, 6], [3, 5], [5, 7]]
+      : [[4, 6]]
+
+    let reading = null
+    for (const [ivOff, encOff] of candidates) {
+      if (reading || ivOff + 1 >= mfr.length || encOff >= mfr.length) break
+      try {
+        const dec = decryptPayload(mfr.slice(encOff), keyHex, mfr.readUInt16LE(ivOff))
+        diag.lastDecryptedHex = dec.toString('hex')
+        reading = parseSolarCharger(dec)
+      } catch (e) {
+        diag.decryptErrors++
+        events.emit('error', e)
       }
-    } catch (e) {
-      diag.decryptErrors++
-      events.emit('error', e)
+    }
+
+    if (reading) {
+      diag.readingsTotal++
+      diag.lastReadingAt = Date.now()
+      diag.lastReading   = reading
+      if (!everConnected) { everConnected = true; events.emit('connected') }
+      events.emit('data', reading)
+    } else {
+      diag.parseErrors++
     }
   }
 

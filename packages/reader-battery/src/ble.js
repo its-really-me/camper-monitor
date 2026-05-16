@@ -147,10 +147,10 @@ function createBleReader(config) {
       if (!connecting) return
       connecting = false
       diag.connectingAt    = null
-      diag.lastConnectError = 'connect timeout (20s)'
+      diag.lastConnectError = 'connect timeout (30s)'
       p.disconnect()
       scheduleReconnect()
-    }, 20000)
+    }, 30000)
 
     p.connect(err => {
       if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `connect: ${err.message}`; return scheduleReconnect() }
