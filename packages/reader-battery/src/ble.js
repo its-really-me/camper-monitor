@@ -79,6 +79,7 @@ function createBleReader(config) {
     connectedAt:          null,
     disconnectedAt:       null,
     reconnectScheduledAt: null,
+    lastConnectError:     null,
     lastPollAt:           null,
     lastRxAt:             null,
     rxBytesTotal:         0,
@@ -145,21 +146,23 @@ function createBleReader(config) {
     let connectTimer = setTimeout(() => {
       if (!connecting) return
       connecting = false
-      diag.connectingAt = null
+      diag.connectingAt    = null
+      diag.lastConnectError = 'connect timeout (20s)'
       p.disconnect()
       scheduleReconnect()
     }, 20000)
 
     p.connect(err => {
-      if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; return scheduleReconnect() }
+      if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `connect: ${err.message}`; return scheduleReconnect() }
       p.discoverServices([SERVICE_UUID], (err, services) => {
-        if (err || !services?.length) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; return scheduleReconnect() }
+        if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `discoverServices: ${err.message}`; return scheduleReconnect() }
+        if (!services?.length) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = 'discoverServices: service ff00 not found'; return scheduleReconnect() }
         services[0].discoverCharacteristics([WRITE_UUID, NOTIFY_UUID], (err, chars) => {
           clearTimeout(connectTimer)
-          if (err) { connecting = false; diag.connectingAt = null; return scheduleReconnect() }
+          if (err) { connecting = false; diag.connectingAt = null; diag.lastConnectError = `discoverCharacteristics: ${err.message}`; return scheduleReconnect() }
           const wc = chars.find(c => c.uuid === WRITE_UUID)
           const nc = chars.find(c => c.uuid === NOTIFY_UUID)
-          if (!wc || !nc) { connecting = false; diag.connectingAt = null; return scheduleReconnect() }
+          if (!wc || !nc) { connecting = false; diag.connectingAt = null; diag.lastConnectError = `characteristics not found (found: ${chars.map(c => c.uuid).join(',')})`; return scheduleReconnect() }
           writeChar = wc
           diag.connectedAt    = Date.now()
           diag.connectingAt   = null
@@ -252,6 +255,7 @@ function createBleReader(config) {
         lastMatchAt:          diag.lastMatchAt,
         connectAttempts:      diag.connectAttempts,
         connectingAt:         diag.connectingAt,
+        lastConnectError:     diag.lastConnectError,
         connectedAt:          diag.connectedAt,
         disconnectedAt:       diag.disconnectedAt,
         reconnectScheduledAt: diag.reconnectScheduledAt,
