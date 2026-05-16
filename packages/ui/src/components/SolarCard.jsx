@@ -48,9 +48,6 @@ export function SolarCard({ solar, connected }) {
   if (!solar) {
     overlayTitle  = t('scanning')
     overlayDetail = t('lookingForSolar')
-  } else if (!connected) {
-    overlayTitle  = t('disconnected')
-    overlayDetail = ageSeconds != null ? t('lastDataAgo', { age: fmtAge(ageSeconds) }) : null
   } else if (stale) {
     overlayTitle  = t('noData')
     overlayDetail = t('sinceLastReading', { age: fmtAge(ageSeconds) })

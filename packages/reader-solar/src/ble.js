@@ -84,6 +84,7 @@ function createBleReader(config) {
     readingsTotal:       0,
     lastReadingAt:       null,
     lastReading:         null,
+    lastDecryptedHex:    null,   // raw decrypted bytes for byte-layout debugging
     // last 10 unique addresses seen (for spotting the target in scan)
     recentDevices:       [],
     devicesSeenTotal:    0,   // total unique addresses ever seen (never decrements)
@@ -136,6 +137,7 @@ function createBleReader(config) {
     const encrypted = mfr.slice(6)
     try {
       const decrypted = decryptPayload(encrypted, keyHex, iv)
+      diag.lastDecryptedHex = decrypted.toString('hex')
       const reading   = parseSolarCharger(decrypted)
       if (reading) {
         diag.readingsTotal++
@@ -213,6 +215,7 @@ function createBleReader(config) {
         readingsTotal:       diag.readingsTotal,
         lastReadingAt:       diag.lastReadingAt,
         lastReading:         diag.lastReading,
+        lastDecryptedHex:    diag.lastDecryptedHex,
         secondsSinceReading: diag.lastReadingAt ? +((Date.now() - diag.lastReadingAt) / 1000).toFixed(1) : null,
       }
     },

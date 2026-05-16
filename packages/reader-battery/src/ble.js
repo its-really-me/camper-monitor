@@ -154,10 +154,17 @@ function createBleReader(config) {
 
     p.connect(err => {
       if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `connect: ${err.message}`; return scheduleReconnect() }
-      p.discoverServices([SERVICE_UUID], (err, services) => {
+      // Discover all services — if ff00 isn't found we log what IS there to identify the correct UUID
+      p.discoverServices([], (err, services) => {
         if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `discoverServices: ${err.message}`; return scheduleReconnect() }
-        if (!services?.length) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = 'discoverServices: service ff00 not found'; return scheduleReconnect() }
-        services[0].discoverCharacteristics([WRITE_UUID, NOTIFY_UUID], (err, chars) => {
+        const target = services?.find(s => s.uuid === SERVICE_UUID)
+        if (!target) {
+          clearTimeout(connectTimer)
+          connecting = false; diag.connectingAt = null
+          diag.lastConnectError = `service ${SERVICE_UUID} not found; device has: ${(services ?? []).map(s => s.uuid).join(',')}`
+          p.disconnect(); return scheduleReconnect()
+        }
+        target.discoverCharacteristics([WRITE_UUID, NOTIFY_UUID], (err, chars) => {
           clearTimeout(connectTimer)
           if (err) { connecting = false; diag.connectingAt = null; diag.lastConnectError = `discoverCharacteristics: ${err.message}`; return scheduleReconnect() }
           const wc = chars.find(c => c.uuid === WRITE_UUID)
