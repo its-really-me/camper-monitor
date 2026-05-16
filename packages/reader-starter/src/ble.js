@@ -92,6 +92,7 @@ function createBleReader(config) {
     devicesSeenTotal:     0,
     lastMatchAt:          null,
     connectAttempts:      0,
+    connectingAt:         null,
     connectedAt:          null,
     disconnectedAt:       null,
     reconnectScheduledAt: null,
@@ -113,7 +114,7 @@ function createBleReader(config) {
     else {
       diag.devicesSeenTotal++
       diag.devicesSeenInScan.push({ address: addr, name, ts: Date.now() })
-      if (diag.devicesSeenInScan.length > 50) diag.devicesSeenInScan.shift()
+      if (diag.devicesSeenInScan.length > 100) diag.devicesSeenInScan.shift()
     }
   }
 
@@ -152,19 +153,32 @@ function createBleReader(config) {
     if (connecting) return   // discover fires multiple times before stopScanning takes effect
     connecting = true
     diag.connectAttempts++
+    diag.connectingAt = Date.now()
     peripheral = p
     p.removeAllListeners('disconnect')
+
+    // Abort if connect/GATT discovery hangs (device moved away after advertising)
+    let connectTimer = setTimeout(() => {
+      if (!connecting) return
+      connecting = false
+      diag.connectingAt = null
+      p.disconnect()
+      scheduleReconnect()
+    }, 20000)
+
     p.connect(err => {
-      if (err) { connecting = false; return scheduleReconnect() }
+      if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; return scheduleReconnect() }
       p.discoverServices([SERVICE_UUID], (err, services) => {
-        if (err || !services?.length) { connecting = false; return scheduleReconnect() }
+        if (err || !services?.length) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; return scheduleReconnect() }
         services[0].discoverCharacteristics([WRITE_UUID, NOTIFY_UUID], (err, chars) => {
-          if (err) { connecting = false; return scheduleReconnect() }
+          clearTimeout(connectTimer)
+          if (err) { connecting = false; diag.connectingAt = null; return scheduleReconnect() }
           const wc = chars.find(c => c.uuid === WRITE_UUID)
           const nc = chars.find(c => c.uuid === NOTIFY_UUID)
-          if (!wc || !nc) { connecting = false; return scheduleReconnect() }
+          if (!wc || !nc) { connecting = false; diag.connectingAt = null; return scheduleReconnect() }
           writeChar           = wc
           diag.connectedAt    = Date.now()
+          diag.connectingAt   = null
           diag.disconnectedAt = null
           nc.subscribe(err => {
             if (err) events.emit('error', new Error(`BM6 subscribe: ${err.message}`))
@@ -174,8 +188,8 @@ function createBleReader(config) {
           clearInterval(pollTimer)
           connecting = false
           events.emit('connected')
-          // Resume scanning so other BLE readers (e.g. battery) can find their devices
-          noble.startScanning([], false)
+          // Resume scanning with allowDuplicates=true so the solar reader gets continuous advertisements
+          noble.startScanning([], true)
           sendHandshake()
           // Re-send handshake on interval — device stops notifying if not periodically polled
           pollTimer = setInterval(sendHandshake, interval)
@@ -183,7 +197,9 @@ function createBleReader(config) {
       })
     })
     p.on('disconnect', () => {
+      clearTimeout(connectTimer)
       connecting = false
+      diag.connectingAt   = null
       diag.disconnectedAt = Date.now()
       events.emit('disconnected')
       clearInterval(pollTimer)
@@ -196,7 +212,7 @@ function createBleReader(config) {
     connecting = false
     diag.reconnectScheduledAt = Date.now()
     reconnTimer = setTimeout(() => {
-      if (running) noble.startScanning([], false)
+      if (running) noble.startScanning([], true)
     }, 5000)
   }
 
@@ -251,6 +267,7 @@ function createBleReader(config) {
         devicesSeenTotal:     diag.devicesSeenTotal,
         lastMatchAt:          diag.lastMatchAt,
         connectAttempts:      diag.connectAttempts,
+        connectingAt:         diag.connectingAt,
         connectedAt:          diag.connectedAt,
         disconnectedAt:       diag.disconnectedAt,
         reconnectScheduledAt: diag.reconnectScheduledAt,

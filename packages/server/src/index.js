@@ -145,8 +145,9 @@ function fmtAge(s) {
 
 function logReaderDiag(name, d) {
   if (!d) return
-  const age   = d.secondsSinceReading != null ? `last=${fmtAge(d.secondsSinceReading)}` : 'no readings yet'
-  const stale = d.secondsSinceReading != null && d.secondsSinceReading > 30
+  const age            = d.secondsSinceReading != null ? `last=${fmtAge(d.secondsSinceReading)}` : 'no readings yet'
+  const staleThreshold = d.driver === 'bm6' ? 300 : 30   // BM6 power-saves when car is off
+  const stale          = d.secondsSinceReading != null && d.secondsSinceReading > staleThreshold
 
   let msg
   if (d.driver === 'bm6') {
