@@ -17,9 +17,9 @@ console.log(`Key: ${keyHex}`)
 
 // ── Paste latest mfrHex values from /diagnostics here ─────────────────────
 const SAMPLES = [
-  'e102100275a001d3a1fb6b19c2455efd5685e3ab803d',
-  'e102100275a001cba3fbefa2bbf9718b9202e5ca99aa',
-  'e102100275a0013ba8fb0306bc0e9b3c2b27ed2c5008',
+  'e102100275a001edb2fb6b086507751f060c6f3adf2e',
+  'e102100275a00189b3fbd71f73a3e83bbfc40d30af89',
+  'e102100275a001e7b3fbf5260911c9a72d1aa4bb5a33',
 ]
 
 // MAC of solar charger (no colons):
