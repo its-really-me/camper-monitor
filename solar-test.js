@@ -84,6 +84,7 @@ for (const hex of SAMPLES) {
   const nonces = noncesFor(mfr)
   const keys   = keyVariants(keyBuf)
 
+  // AES-CTR: all key variants × all enc offsets × all nonces
   for (const [kLabel, k] of Object.entries(keys)) {
     for (let encStart = 3; encStart <= 10; encStart++) {
       if (mfr.length - encStart < 10) continue
@@ -94,12 +95,48 @@ for (const hex of SAMPLES) {
         const dec = Buffer.concat([c.update(mfr.slice(encStart)), c.final()])
         if (isPlausible(dec)) {
           hits++
-          console.log(`\n*** HIT  ${kLabel}  enc@${encStart}  ${nLabel}`)
+          console.log(`\n*** HIT  AES-CTR  ${kLabel}  enc@${encStart}  ${nLabel}`)
           console.log(`         ${fmtDec(dec)}`)
           console.log(`         dec=${dec.toString('hex')}`)
           console.log(`         mfr=${hex}`)
         }
       }
+    }
+  }
+
+  // AES-ECB / CBC-zero-IV: mfr bytes 6-21 = exactly 16 bytes
+  for (const [kLabel, k] of Object.entries(keys)) {
+    for (let encStart = 3; encStart <= 7; encStart++) {
+      const block = mfr.slice(encStart, encStart + 16)
+      if (block.length < 16) continue
+
+      // ECB
+      try {
+        const c   = crypto.createDecipheriv('aes-128-ecb', k, '')
+        c.setAutoPadding(false)
+        const dec = Buffer.concat([c.update(block), c.final()])
+        if (isPlausible(dec)) {
+          hits++
+          console.log(`\n*** HIT  AES-ECB  ${kLabel}  enc@${encStart}`)
+          console.log(`         ${fmtDec(dec)}`)
+          console.log(`         dec=${dec.toString('hex')}`)
+          console.log(`         mfr=${hex}`)
+        }
+      } catch {}
+
+      // CBC with zero IV (= ECB for first block, but explicit)
+      try {
+        const c   = crypto.createDecipheriv('aes-128-cbc', k, Buffer.alloc(16))
+        c.setAutoPadding(false)
+        const dec = Buffer.concat([c.update(block), c.final()])
+        if (isPlausible(dec)) {
+          hits++
+          console.log(`\n*** HIT  AES-CBC/0IV  ${kLabel}  enc@${encStart}`)
+          console.log(`         ${fmtDec(dec)}`)
+          console.log(`         dec=${dec.toString('hex')}`)
+          console.log(`         mfr=${hex}`)
+        }
+      } catch {}
     }
   }
 }
