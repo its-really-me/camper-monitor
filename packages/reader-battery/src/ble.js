@@ -77,6 +77,7 @@ function createBleReader(config) {
     connectAttempts:      0,
     connectingAt:         null,
     connectL2At:          null,   // set when p.connect() callback fires (L2 link up)
+    connectGattStage:     null,   // 1 = discoverServices(filtered), 2 = discoverServices(all)
     connectedAt:          null,
     disconnectedAt:       null,
     reconnectScheduledAt: null,
@@ -143,34 +144,38 @@ function createBleReader(config) {
     peripheral = p
     p.removeAllListeners('disconnect')
 
-    // Abort if connect/GATT discovery hangs (device moved away after advertising)
+    // Abort if connect/GATT discovery hangs — 60s to accommodate slow BMS enumeration
     let connectTimer = setTimeout(() => {
       if (!connecting) return
-      const hadL2 = diag.connectL2At !== null
+      const hadL2    = diag.connectL2At !== null
+      const stage    = diag.connectGattStage
       connecting = false
       diag.connectingAt    = null
       diag.connectL2At     = null
+      diag.connectGattStage = null
       diag.lastConnectError = hadL2
-        ? 'connect timeout (30s) — GATT discovery hung after L2 link was up'
-        : 'connect timeout (30s) — p.connect() never called back (L2 hang)'
+        ? `connect timeout (60s) — GATT discovery hung at stage ${stage} after L2 link was up`
+        : 'connect timeout (60s) — p.connect() never called back (L2 hang)'
       p.disconnect()
       scheduleReconnect()
-    }, 30000)
+    }, 60000)
 
     p.connect(err => {
-      if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.connectL2At = null; diag.lastConnectError = `connect: ${err.message}`; return scheduleReconnect() }
-      diag.connectL2At = Date.now()   // L2 link is up; GATT discovery starts now
+      if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.connectL2At = null; diag.connectGattStage = null; diag.lastConnectError = `connect: ${err.message}`; return scheduleReconnect() }
+      diag.connectL2At     = Date.now()   // L2 link is up; GATT discovery starts now
+      diag.connectGattStage = 1
       // Fast path: filter for known JBD service UUID
       p.discoverServices([SERVICE_UUID], (err, services) => {
-        if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.lastConnectError = `discoverServices: ${err.message}`; return scheduleReconnect() }
+        if (err) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.connectGattStage = null; diag.lastConnectError = `discoverServices: ${err.message}`; return scheduleReconnect() }
         if (services?.length) {
           // Service found — proceed directly to characteristics
           continueWithService(services[0])
         } else {
           // Not a JBD BMS — enumerate all services to identify the correct UUID
+          diag.connectGattStage = 2
           p.discoverServices([], (err2, all) => {
             clearTimeout(connectTimer)
-            connecting = false; diag.connectingAt = null
+            connecting = false; diag.connectingAt = null; diag.connectGattStage = null
             if (err2) { diag.lastConnectError = `discoverServices(all): ${err2.message}`; return scheduleReconnect() }
             diag.lastConnectError = `service ${SERVICE_UUID} not found; device has: ${(all ?? []).map(s => s.uuid).join(',')}`
             p.disconnect(); scheduleReconnect()
@@ -207,9 +212,10 @@ function createBleReader(config) {
     p.on('disconnect', () => {
       clearTimeout(connectTimer)
       connecting = false
-      diag.connectingAt   = null
-      diag.connectL2At    = null
-      diag.disconnectedAt = Date.now()
+      diag.connectingAt    = null
+      diag.connectL2At     = null
+      diag.connectGattStage = null
+      diag.disconnectedAt  = Date.now()
       events.emit('disconnected')
       clearInterval(pollTimer)
       writeChar = null
@@ -279,6 +285,7 @@ function createBleReader(config) {
         connectAttempts:      diag.connectAttempts,
         connectingAt:         diag.connectingAt,
         connectL2At:          diag.connectL2At,
+        connectGattStage:     diag.connectGattStage,
         lastConnectError:     diag.lastConnectError,
         connectedAt:          diag.connectedAt,
         disconnectedAt:       diag.disconnectedAt,
