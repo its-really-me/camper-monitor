@@ -171,14 +171,24 @@ function createBleReader(config) {
           // Service found — proceed directly to characteristics
           continueWithService(services[0])
         } else {
-          // Not a JBD BMS — enumerate all services to identify the correct UUID
+          // Not a JBD BMS — enumerate all services, then characteristics of any non-standard ones
           diag.connectGattStage = 2
           p.discoverServices([], (err2, all) => {
             clearTimeout(connectTimer)
             connecting = false; diag.connectingAt = null; diag.connectGattStage = null
             if (err2) { diag.lastConnectError = `discoverServices(all): ${err2.message}`; return scheduleReconnect() }
-            diag.lastConnectError = `service ${SERVICE_UUID} not found; device has: ${(all ?? []).map(s => s.uuid).join(',')}`
-            p.disconnect(); scheduleReconnect()
+            const svcUuids = (all ?? []).map(s => s.uuid).join(',')
+            diag.lastConnectError = `service ${SERVICE_UUID} not found; device has: ${svcUuids}`
+            // Enumerate characteristics of any non-standard service for protocol identification
+            const unknown = (all ?? []).filter(s => s.uuid !== '1800' && s.uuid !== '1801')
+            if (!unknown.length) { p.disconnect(); return scheduleReconnect() }
+            unknown[0].discoverCharacteristics([], (err3, chars) => {
+              if (!err3 && chars?.length) {
+                const info = chars.map(c => `${c.uuid}[${c.properties.join(',')}]`).join(' ')
+                diag.lastConnectError += `; service ${unknown[0].uuid} chars: ${info}`
+              }
+              p.disconnect(); scheduleReconnect()
+            })
           })
         }
       })
