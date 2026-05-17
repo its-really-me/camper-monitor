@@ -5,12 +5,12 @@ readers:
     pollInterval: 5000                # ms
 
   solar:
-    driver: vedirect                  # 'vedirect' | 'ble' | 'mock'  — override with SOLAR_DRIVER env var
+    driver: ble                  # 'vedirect' | 'ble' | 'mock'  — override with SOLAR_DRIVER env var
     # VE.Direct (driver: vedirect)
     port: /dev/ttyUSB0
     # Victron BLE (driver: ble)
-    macAddress: "11:22:33:44:55:66"
-    advertisementKey: ""              # 32-char hex from VictronConnect → device → info → advertisement key
+    macAddress: ""
+    advertisementKey: "fb22965b5e047779a766f9f61c7193c5"              # 32-char hex from VictronConnect → device → info → advertisement key
     pollInterval: 2000                # ms (mock / ble only — VE.Direct sends ~1 s naturally)
 
   starter:
