@@ -171,51 +171,69 @@ function createBleReader(config) {
           // Service found — proceed directly to characteristics
           continueWithService(services[0])
         } else {
-          // Not a JBD BMS — enumerate all services, then characteristics of any non-standard ones
+          // Non-JBD device — enumerate all services looking for a write+notify pair
           diag.connectGattStage = 2
           p.discoverServices([], (err2, all) => {
-            clearTimeout(connectTimer)
-            connecting = false; diag.connectingAt = null; diag.connectGattStage = null
-            if (err2) { diag.lastConnectError = `discoverServices(all): ${err2.message}`; return scheduleReconnect() }
+            if (err2) { clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.connectGattStage = null; diag.lastConnectError = `discoverServices(all): ${err2.message}`; return scheduleReconnect() }
             const svcUuids = (all ?? []).map(s => s.uuid).join(',')
-            diag.lastConnectError = `service ${SERVICE_UUID} not found; device has: ${svcUuids}`
-            // Enumerate characteristics of any non-standard service for protocol identification
-            const unknown = (all ?? []).filter(s => s.uuid !== '1800' && s.uuid !== '1801')
-            if (!unknown.length) { p.disconnect(); return scheduleReconnect() }
-            unknown[0].discoverCharacteristics([], (err3, chars) => {
-              if (!err3 && chars?.length) {
-                const info = chars.map(c => `${c.uuid}[${c.properties.join(',')}]`).join(' ')
-                diag.lastConnectError += `; service ${unknown[0].uuid} chars: ${info}`
+            const unknown  = (all ?? []).filter(s => s.uuid !== '1800' && s.uuid !== '1801')
+            if (!unknown.length) {
+              clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.connectGattStage = null
+              diag.lastConnectError = `service ${SERVICE_UUID} not found; device has: ${svcUuids}`
+              p.disconnect(); return scheduleReconnect()
+            }
+            // Try each non-standard service in turn looking for write + notify
+            ;(function tryNextService(idx) {
+              if (idx >= unknown.length) {
+                clearTimeout(connectTimer); connecting = false; diag.connectingAt = null; diag.connectGattStage = null
+                diag.lastConnectError = `service ${SERVICE_UUID} not found; no write+notify pair in: ${svcUuids}`
+                p.disconnect(); return scheduleReconnect()
               }
-              p.disconnect(); scheduleReconnect()
-            })
+              const svc = unknown[idx]
+              svc.discoverCharacteristics([], (err3, chars) => {
+                if (err3) return tryNextService(idx + 1)
+                const info = (chars ?? []).map(c => `${c.uuid}[${c.properties.join(',')}]`).join(' ')
+                diag.lastConnectError = `service ${SERVICE_UUID} not found; device has: ${svcUuids}; service ${svc.uuid} chars: ${info}`
+                const wc = (chars ?? []).find(c => c.properties.some(pr => pr === 'write' || pr === 'writeWithoutResponse'))
+                const nc = (chars ?? []).find(c => c.properties.includes('notify'))
+                if (!wc || !nc) return tryNextService(idx + 1)
+                // Found write+notify on non-JBD service — attempt JBD protocol
+                setupWithChars(wc, nc)
+              })
+            })(0)
           })
         }
       })
 
+      function setupWithChars(wc, nc) {
+        clearTimeout(connectTimer)
+        writeChar = wc
+        diag.connectedAt    = Date.now()
+        diag.connectingAt   = null
+        diag.connectGattStage = null
+        diag.disconnectedAt = null
+        nc.subscribe(err => {
+          if (err) events.emit('error', new Error(`BMS subscribe: ${err.message}`))
+        })
+        nc.removeAllListeners('data')
+        nc.on('data', onData)
+        clearInterval(pollTimer)
+        connecting = false
+        events.emit('connected')
+        // Resume scanning with allowDuplicates=true so the solar reader gets continuous advertisements
+        noble.startScanning([], true)
+        poll()
+        pollTimer = setInterval(poll, interval)
+      }
+
       function continueWithService(svc) {
         svc.discoverCharacteristics([WRITE_UUID, NOTIFY_UUID], (err, chars) => {
           clearTimeout(connectTimer)
-          if (err) { connecting = false; diag.connectingAt = null; diag.lastConnectError = `discoverCharacteristics: ${err.message}`; return scheduleReconnect() }
+          if (err) { connecting = false; diag.connectingAt = null; diag.connectGattStage = null; diag.lastConnectError = `discoverCharacteristics: ${err.message}`; return scheduleReconnect() }
           const wc = chars.find(c => c.uuid === WRITE_UUID)
           const nc = chars.find(c => c.uuid === NOTIFY_UUID)
-          if (!wc || !nc) { connecting = false; diag.connectingAt = null; diag.lastConnectError = `characteristics not found (found: ${chars.map(c => c.uuid).join(',')})`; return scheduleReconnect() }
-          writeChar = wc
-          diag.connectedAt    = Date.now()
-          diag.connectingAt   = null
-          diag.disconnectedAt = null
-          nc.subscribe(err => {
-            if (err) events.emit('error', new Error(`BMS subscribe: ${err.message}`))
-          })
-          nc.removeAllListeners('data')
-          nc.on('data', onData)
-          clearInterval(pollTimer)
-          connecting = false
-          events.emit('connected')
-          // Resume scanning with allowDuplicates=true so the solar reader gets continuous advertisements
-          noble.startScanning([], true)
-          poll()
-          pollTimer = setInterval(poll, interval)
+          if (!wc || !nc) { connecting = false; diag.connectingAt = null; diag.connectGattStage = null; diag.lastConnectError = `characteristics not found (found: ${chars.map(c => c.uuid).join(',')})`; return scheduleReconnect() }
+          setupWithChars(wc, nc)
         })
       }
     })

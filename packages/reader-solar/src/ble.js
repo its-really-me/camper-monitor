@@ -32,12 +32,19 @@ const CS_MODES = {
   252: 'External Control',
 }
 
-function decryptPayload(encrypted, keyHex, iv) {
-  const nonce = Buffer.alloc(16)
-  if (iv !== 0) nonce.writeUInt16LE(iv, 0)   // iv=0 → all-zero nonce
-  const key     = Buffer.from(keyHex, 'hex')
-  const cipher  = crypto.createDecipheriv('aes-128-ctr', key, nonce)
+function decryptPayload(encrypted, keyHex, nonce) {
+  const key    = Buffer.from(keyHex, 'hex')
+  const cipher = crypto.createDecipheriv('aes-128-ctr', key, nonce)
   return Buffer.concat([cipher.update(encrypted), cipher.final()])
+}
+
+function buildNonce(ivOff, mfr) {
+  const nonce = Buffer.alloc(16)
+  if (ivOff === null)   return nonce                                   // all-zero
+  if (ivOff === 'n3')  { mfr.copy(nonce, 0, 3, 6); return nonce }    // 3-byte: mfr[3:6]
+  if (ivOff === 'n4')  { mfr.copy(nonce, 0, 3, 7); return nonce }    // 4-byte: mfr[3:7]
+  nonce.writeUInt16LE(mfr.readUInt16LE(ivOff), 0)
+  return nonce
 }
 
 function parseSolarCharger(decrypted) {
@@ -140,23 +147,22 @@ function createBleReader(config) {
       return
     }
 
-    // For record type 0x10 (newer firmware) byte 6 appears to be a header/flags byte;
-    // encrypted data starts at byte 7. Try [4,7] (standard IV position, data@7) first.
-    // null ivOff = zero nonce (all-zero 16-byte nonce).
+    // Candidates: [ivOff, encOff] where ivOff is a uint16 offset into mfr, null = zero nonce,
+    // 'n3' = 3-byte nonce mfr[3:6], 'n4' = 4-byte nonce mfr[3:7].
     const candidates = mfr[2] === 0x10
-      ? [[4, 7], [4, 6], [3, 5], [5, 7], [3, 7], [null, 7]]
+      ? [[4, 7], [4, 6], [3, 5], [5, 7], [3, 7], [null, 7], ['n3', 7], ['n4', 7]]
       : [[4, 6]]
 
     let reading = null
     diag.lastCandidateAttempts = []
     for (const [ivOff, encOff] of candidates) {
       if (reading) break
-      if (ivOff !== null && ivOff + 1 >= mfr.length) continue
       if (encOff >= mfr.length) continue
+      if (typeof ivOff === 'number' && ivOff + 1 >= mfr.length) continue
       try {
-        const iv  = ivOff === null ? 0 : mfr.readUInt16LE(ivOff)
-        const dec = decryptPayload(mfr.slice(encOff), keyHex, iv)
-        const hex = dec.toString('hex')
+        const nonce = buildNonce(ivOff, mfr)
+        const dec   = decryptPayload(mfr.slice(encOff), keyHex, nonce)
+        const hex   = dec.toString('hex')
         diag.lastDecryptedHex = hex
         reading = parseSolarCharger(dec)
         diag.lastCandidateAttempts.push({ ivOff, encOff, hex, ok: !!reading })
