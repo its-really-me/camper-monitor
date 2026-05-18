@@ -53,7 +53,7 @@ export default function App() {
             <SolarCard
               solar={state?.solar ?? null}
               connected={state?.solarConnected ?? false}
-              pollInterval={10_000}
+              pollInterval={120_000}
             />
             {hasStarter && (
               <BatteryCard
