@@ -3,3 +3,8 @@ dist/
 !packages/ui/dist/
 .env
 *.log
+
+# Internal planning docs — not for publication
+PRD.md
+Bug-fixes.md
+CHANGES.md
