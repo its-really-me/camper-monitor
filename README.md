@@ -6,7 +6,7 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 
 ## What it shows
 
-**Body Battery — Aufbaubatterie (Eco-worthy JBD BMS via Bluetooth)**
+**Body Battery — Aufbaubatterie (Eco-Worthy LiFePO4, ECO AA-frame BMS via Bluetooth)**
 - State of Charge with animated gauge
 - Voltage, current, power
 - Status: Charging / Discharging / Idle
@@ -190,7 +190,7 @@ readers:
     driver: ble
     macAddress: "AA:BB:CC:DD:EE:FF"   # SmartSolar BLE MAC
     advertisementKey: "a1b2c3d4e5f6778899aabbccddeeff00"  # 32-char hex from VictronConnect
-    pollInterval: 2000   # advertisements arrive ~every 1 s; this is the display refresh rate
+    pollInterval: 10000   # UI staleness check interval; ads arrive ~every 1-2 s passively
 ```
 
 Leave `macAddress` empty to accept the first Victron Instant Readout advertisement seen — useful when the device MAC is unknown or uses a rotating private address:
@@ -198,6 +198,36 @@ Leave `macAddress` empty to accept the first Victron Instant Readout advertiseme
 ```yaml
     macAddress: ""   # blank = accept any Victron SmartSolar
 ```
+
+### BLE advertisement format (technical reference)
+
+The SmartSolar broadcasts **Instant Readout** advertisements with Victron company ID `0x02E1`. The reader is passive — no connection is established.
+
+| Byte(s) | Content |
+|---------|---------|
+| mfr[0:1] | Company ID `0x02E1` (LE) |
+| mfr[2] | Record marker `0x10` |
+| mfr[6] | Record type `0x01` = solar charger |
+| mfr[7:8] | IV: LE uint16, zero-padded to 16 bytes |
+| mfr[9] | `key[0]` — transmitted unencrypted; use to verify the advertisement key before decrypting |
+| mfr[10:] | 12-byte AES-128-CTR ciphertext |
+
+Decrypted payload fields: charge state (CS) at byte 0, battery voltage at bytes 2–3 (10 mV resolution), battery current at bytes 4–5 (100 mA), yield today at bytes 6–7 (10 Wh → kWh), PV power at bytes 8–9 (W).
+
+PV voltage and PV current are **not** present in the BLE advertisement. The UI hides these fields automatically when using the BLE driver.
+
+> **Spec:** Victron "Extra Manufacturer Data" document, 2022-12-14.
+
+### BLE staleness thresholds
+
+In a busy BLE environment (many nearby devices), the Pi may receive only 1 advertisement every 1–2 minutes. The UI uses 120 s as the poll interval for the solar card:
+
+| Threshold | Time |
+|-----------|------|
+| Warn (grey age label appears) | 4 min (2 × 120 s) |
+| Overlay (stale reading shown with overlay) | 10 min (5 × 120 s) |
+
+The last known reading remains visible at all times; the overlay appears on top of it only after 10 minutes without a new advertisement.
 
 ### Step 4 — Enable Bluetooth on the Pi (if not already done)
 
@@ -233,14 +263,14 @@ SOLAR_DRIVER=vedirect npm start
 
 ## Finding MAC addresses
 
-### JBD BMS (battery)
+### ECO BMS (body battery)
 
 On the Pi (or any Linux machine with BlueZ):
 
 ```sh
 sudo bluetoothctl
 > scan on
-# wait ~10 s — your BMS will appear, name usually contains "JBD" or your battery model
+# wait ~10 s — the BMS will appear; Eco-Worthy AA-frame BMS advertises as "ECOB<last4hex>" (e.g. ECOB481)
 > scan off
 > quit
 ```
@@ -342,7 +372,7 @@ No sudoers rule is needed — DPMS is handled entirely within X11. The Firefox p
 
 ## Hardware wiring
 
-### JBD BMS → Pi Zero
+### ECO BMS → Pi Zero
 
 No wiring needed — Bluetooth is wireless. Ensure the BMS is powered and within ~10 m of the Pi.
 
@@ -431,6 +461,38 @@ curl -s localhost:3000/diagnostics | python3 -m json.tool
 
 Root cause and fix: see [Bug-8 in Bug-fixes.md](Bug-fixes.md#bug-8).
 
+### Battery BMS reads once then stops
+
+On Pi Zero, BlueZ silently stops emitting BLE discover events after an L2 connection failure. Symptom: `connectAttempts: 1`, `connectedAt: <time>`, then no further reads. A watchdog kicks in every 60 s to force a BLE stop+start cycle. Check `consecutiveHangs` in the diagnostics — exponential backoff is applied: 5 s / 30 s / 60 s / 120 s per consecutive hang.
+
+```sh
+curl -s localhost:3000/diagnostics | python3 -c \
+  "import sys,json; d=json.load(sys.stdin)['battery']; print('hangs:', d.get('consecutiveHangs'), 'last error:', d.get('lastConnectError'))"
+```
+
+The BMS often stops advertising for 2–5 minutes after a failed connection attempt. This is normal — the watchdog will reconnect automatically.
+
+### Solar BLE — decryption not working / `readingsTotal: 0`
+
+If `solarChargerPassed > 0` but `readingsTotal` stays 0, the advertisement key may be wrong or the diagnostic captures may be from a stale sample.
+
+Run `solar-test.js` to test all decryption variants against fresh samples:
+
+1. Get fresh `mfrHex` values from the diagnostics:
+   ```sh
+   curl -s localhost:3000/diagnostics | python3 -c \
+     "import sys,json; d=json.load(sys.stdin)['solar']; print(d.get('lastMacMatch',{}).get('mfrHex'))"
+   ```
+2. Paste the hex into the `SAMPLES` array in `solar-test.js`.
+3. Run from the repo root:
+   ```sh
+   node solar-test.js
+   ```
+4. Any `*** HIT` line with a plausible battery voltage (11–16.5 V) identifies the working parameters.
+5. If `mfr[9]` does not match `key[0]`, the advertisement key in `settings.yaml` is wrong — retrieve the correct key from VictronConnect → device → Product info → Advertisement key.
+
+If there are no hits at all, the advertisement key is wrong or the samples are from a different device.
+
 ### Service restart not reliable
 
 A full reboot is more reliable than `systemctl restart` when the BLE stack is involved:
@@ -493,15 +555,16 @@ Root cause and fix: see [Bug-10 in Bug-fixes.md](Bug-fixes.md#bug-10).
 | Setting | Where | Description |
 |---|---|---|
 | `readers.battery.driver` | `settings.yaml` | `ble` or `mock` |
-| `readers.battery.macAddress` | `settings.yaml` | BLE MAC of JBD BMS |
-| `readers.battery.pollInterval` | `settings.yaml` | Poll interval in ms (default 5000) |
+| `readers.battery.macAddress` | `settings.yaml` | BLE MAC of ECO AA-frame BMS |
+| `readers.battery.pollInterval` | `settings.yaml` | Active BLE poll interval in ms (default 15000) |
 | `readers.solar.driver` | `settings.yaml` | `vedirect`, `ble`, or `mock` |
 | `readers.solar.port` | `settings.yaml` | Serial port for VE.Direct (default `/dev/ttyUSB0`) |
 | `readers.solar.macAddress` | `settings.yaml` | BLE MAC of SmartSolar (BLE driver only) |
-| `readers.solar.advertisementKey` | `settings.yaml` | 32-char hex key (BLE driver only) |
+| `readers.solar.advertisementKey` | `settings.yaml` | 32-char hex key (BLE driver only); retrieve from VictronConnect → Product info |
+| `readers.solar.pollInterval` | `settings.yaml` | Staleness check interval in ms (default 10000; UI uses 120000 for BLE) |
 | `readers.starter.driver` | `settings.yaml` | `bm6` or `mock` — omit entire `starter:` block to disable |
 | `readers.starter.macAddress` | `settings.yaml` | BLE MAC of intAct Battery-Guard / BM6 device |
-| `readers.starter.pollInterval` | `settings.yaml` | Poll interval in ms (default 5000) |
+| `readers.starter.pollInterval` | `settings.yaml` | Active BLE poll interval in ms (default 30000) |
 | `server.port` | `settings.yaml` | HTTP port (default 3000) |
 | `BATTERY_DRIVER` | `.env` | Overrides `readers.battery.driver` |
 | `SOLAR_DRIVER` | `.env` | Overrides `readers.solar.driver` |
@@ -542,7 +605,7 @@ Echtzeit-Dashboard für eine 12-V-LiFePO4-Aufbaubatterie und den Victron SmartSo
 
 ## Was angezeigt wird
 
-**Bordbatterie (Eco-worthy JBD-BMS via Bluetooth)**
+**Bordbatterie (Eco-Worthy LiFePO4, ECO AA-frame-BMS via Bluetooth)**
 - Ladezustand mit animiertem Rundinstrument
 - Spannung, Strom, Leistung
 - Status: Laden / Entladen / Standby
@@ -716,7 +779,7 @@ readers:
     driver: ble
     macAddress: "AA:BB:CC:DD:EE:FF"
     advertisementKey: "a1b2c3d4e5f6778899aabbccddeeff00"
-    pollInterval: 2000
+    pollInterval: 10000   # Werbepakete kommen passiv ~alle 1–2 s an
 ```
 
 `macAddress` leer lassen, um die erste empfangene Victron-Instant-Readout-Werbung zu akzeptieren — sinnvoll wenn die MAC unbekannt ist oder eine rotierende Private Address verwendet wird:
@@ -725,17 +788,21 @@ readers:
     macAddress: ""   # leer = beliebige Victron SmartSolar
 ```
 
+> **Hinweis zur Veralterung:** In einer BLE-reichen Umgebung (viele nahe Geräte) kann der Pi nur ein Werbepaket pro 1–2 Minuten empfangen. Die UI verwendet 120 s als Polling-Intervall für die Solar-Karte — die Warngrenze liegt bei 4 Min., die Overlay-Grenze bei 10 Min. Die zuletzt bekannten Werte bleiben sichtbar, bis die Overlay-Grenze überschritten ist.
+
+> **BLE-Protokollreferenz:** Victron „Extra Manufacturer Data"-Dokument, 2022-12-14. IV: mfr[7:8] LE uint16, mfr[9] = key[0] (Überprüfungsbyte), Chiffretext: mfr[10:] (12 Byte, AES-128-CTR).
+
 ---
 
 ## MAC-Adressen finden
 
-### JBD-BMS (Bordbatterie)
-entweder label auf dem Produkt suchen oder 
+### ECO-BMS (Bordbatterie)
+Entweder Label auf dem Produkt suchen oder:
 
 ```sh
 sudo bluetoothctl
 > scan on
-# warten ~10 s — BMS erscheint, Name enthält meist „JBD" o. Ä.
+# warten ~10 s — Eco-Worthy AA-frame-BMS erscheint als „ECOB<letzte4Hex>" (z. B. ECOB481)
 > scan off
 > quit
 ```
@@ -767,7 +834,7 @@ Standard-X11-Setup mit Firefox ESR. Das Installationsskript richtet alles automa
 
 ## Hardware-Verdrahtung
 
-### JBD-BMS → Pi Zero
+### ECO-BMS → Pi Zero
 
 Keine Verkabelung nötig — Bluetooth ist kabellos. BMS eingeschaltet und innerhalb von ~10 m des Pi halten.
 
@@ -832,6 +899,21 @@ curl -s localhost:3000/diagnostics | python3 -m json.tool
 
 Ursache und Lösung: siehe [Bug-8 in Bug-fixes.md](Bug-fixes.md#bug-8).
 
+### Bordbatterie-BMS liest nur einmal und stoppt dann
+
+BlueZ auf dem Pi Zero sendet nach einem L2-Verbindungsfehler still keine `discover`-Ereignisse mehr. Ein Watchdog (60-s-Intervall) erzwingt einen BLE-Stop/Start-Zyklus. `consecutiveHangs` in den Diagnosedaten zeigt, wie oft der Backoff greift (5 s / 30 s / 60 s / 120 s). Das BMS hört nach einem fehlgeschlagenen Verbindungsversuch 2–5 Minuten auf zu werben — das ist normal.
+
+### Solar BLE — Entschlüsselung funktioniert nicht
+
+Wenn `solarChargerPassed > 0`, aber `readingsTotal` bei 0 bleibt, stimmt möglicherweise der Advertisement-Schlüssel nicht. Diagnose mit `solar-test.js`:
+
+```sh
+# Frischen mfrHex aus den Diagnosedaten holen und in solar-test.js einfügen, dann:
+node solar-test.js
+```
+
+Jede `*** HIT`-Zeile mit einer plausiblen Batteriespannung (11–16,5 V) zeigt die korrekten Parameter. Stimmt `mfr[9]` nicht mit `key[0]` überein, ist der Schlüssel in `settings.yaml` falsch.
+
 ### Dienst-Neustart nicht zuverlässig
 
 Ein vollständiger Neustart ist zuverlässiger als `systemctl restart` bei BLE-Problemen:
@@ -894,15 +976,16 @@ Ursache und Lösung: siehe [Bug-10 in Bug-fixes.md](Bug-fixes.md#bug-10).
 | Einstellung | Ort | Beschreibung |
 |---|---|---|
 | `readers.battery.driver` | `settings.yaml` | `ble` oder `mock` |
-| `readers.battery.macAddress` | `settings.yaml` | BLE-MAC des JBD-BMS |
-| `readers.battery.pollInterval` | `settings.yaml` | Abfrageintervall in ms (Standard 5000) |
+| `readers.battery.macAddress` | `settings.yaml` | BLE-MAC des ECO AA-frame-BMS |
+| `readers.battery.pollInterval` | `settings.yaml` | Aktives BLE-Abfrageintervall in ms (Standard 15000) |
 | `readers.solar.driver` | `settings.yaml` | `vedirect`, `ble` oder `mock` |
 | `readers.solar.port` | `settings.yaml` | Serieller Port für VE.Direct (Standard `/dev/ttyUSB0`) |
 | `readers.solar.macAddress` | `settings.yaml` | BLE-MAC des SmartSolar (nur BLE-Treiber) |
-| `readers.solar.advertisementKey` | `settings.yaml` | 32-stelliger Hex-Schlüssel (nur BLE-Treiber) |
+| `readers.solar.advertisementKey` | `settings.yaml` | 32-stelliger Hex-Schlüssel (nur BLE-Treiber); aus VictronConnect → Produktinfo |
+| `readers.solar.pollInterval` | `settings.yaml` | Veralterungsprüfintervall in ms (Standard 10000; UI nutzt 120000 für BLE) |
 | `readers.starter.driver` | `settings.yaml` | `bm6` oder `mock` — gesamten `starter:`-Block weglassen zum Deaktivieren |
 | `readers.starter.macAddress` | `settings.yaml` | BLE-MAC des intAct Battery-Guard / BM6 |
-| `readers.starter.pollInterval` | `settings.yaml` | Abfrageintervall in ms (Standard 5000) |
+| `readers.starter.pollInterval` | `settings.yaml` | Aktives BLE-Abfrageintervall in ms (Standard 30000) |
 | `server.port` | `settings.yaml` | HTTP-Port (Standard 3000) |
 | `ui.language` | `settings.yaml` | UI-Sprache: `en` (Englisch) oder `de` (Deutsch) |
 | `BATTERY_DRIVER` | `.env` | Überschreibt `readers.battery.driver` |

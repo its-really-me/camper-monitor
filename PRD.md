@@ -1,14 +1,14 @@
 # Product Requirements Document — Camper Monitor
 
-**Version:** 1.3  
-**Date:** 2026-05-12  
+**Version:** 1.4  
+**Date:** 2026-05-18  
 **Status:** Implemented and verified on hardware
 
 ---
 
 ## 1. Overview
 
-Camper Monitor is a real-time dashboard running on a Raspberry Pi Zero with an attached 1024×600 HDMI display. It reads live data from a Eco-worthy 12V LiFePO4 body battery (JBD BMS via BLE), a Victron SmartSolar MPPT 75/15 (VE.Direct or BLE), and optionally a 12V lead-acid starter battery (intAct Battery-Guard / BM6 via BLE). Data is presented in a clear, always-on UI suitable for a camper van.
+Camper Monitor is a real-time dashboard running on a Raspberry Pi Zero with an attached 1024×600 HDMI display. It reads live data from an Eco-Worthy 12V LiFePO4 body battery (ECO AA-frame BMS via BLE), a Victron SmartSolar MPPT 75/15 (VE.Direct or BLE), and optionally a 12V lead-acid starter battery (intAct Battery-Guard / BM6 via BLE). Data is presented in a clear, always-on UI suitable for a camper van.
 
 The system is also runnable on a developer's machine without any hardware (mock mode).
 
@@ -45,7 +45,7 @@ The system is also runnable on a developer's machine without any hardware (mock 
 │                                                     │
 │  ┌──────────────────┐   ┌──────────────────────┐    │
 │  │  reader-battery  │   │    reader-solar      │    │
-│  │  (JBD BMS / BLE) │   │ (Victron VE.Direct   │    │
+│  │  (ECO BMS / BLE) │   │ (Victron VE.Direct   │    │
 │  └────────┬─────────┘   │  or BLE fallback)    │    │
 │           │             └──────────┬───────────┘    │
 │  ┌────────┴─────────┐             │                 │
@@ -153,12 +153,15 @@ camper-monitor/
 │   ├── install.sh             # full system installer — auto-detects Pi model
 │   └── configure.sh           # interactive config wizard — can be re-run any time
 ├── packages/
-│   ├── reader-battery/        # JBD BMS reader (body battery / Aufbaubatterie)
+│   ├── reader-battery/        # ECO AA-frame BMS reader (body battery / Aufbaubatterie)
 │   │   ├── package.json
 │   │   └── src/
 │   │       ├── index.js       # createReader factory → picks ble.js or mock.js
-│   │       ├── ble.js         # noble BLE + JBD protocol parser
-│   │       └── mock.js        # realistic SoC drift simulation
+│   │       ├── ble.js         # noble BLE connection manager; delegates to protocol/
+│   │       ├── mock.js        # realistic SoC drift simulation
+│   │       └── protocol/
+│   │           ├── eco.js     # ECO AA-frame (0xAA header) — Eco-Worthy LiFePO4 BMS
+│   │           └── jbd.js     # JBD DD-frame (0xDD header) — generic JBD BMS
 │   │
 │   ├── reader-starter/        # intAct Battery-Guard / BM6 reader (optional starter battery)
 │   │   ├── package.json
@@ -211,18 +214,24 @@ camper-monitor/
 
 ### 7.1 BatteryReading
 
-Source: JBD BMS via BLE (service `ff00`, write char `ff02`, notify char `ff01`)  
-Command: `0xDD 0xA5 0x03 0x00 0xFF 0xFD 0x77` (basic info request)  
-Checksum: `0x10000 - sum(data bytes)` masked to `0xFFFF`
+**ECO AA-frame protocol** (Eco-Worthy LiFePO4, protocol `eco` in config):  
+Header: `0xAA 0x55` · Service UUID `FFE0` · Write char `FFE2` · Notify char `FFE1`  
+Commands: `CMD_INIT (0x21)`, `CMD_STATUS (0x21)`, `CMD_CELLS (0x22)`  
+Cell voltage encoding: LE uint16 pairs from payload[0], stride 2 (e.g. `65 0d` → 3429 mV)
+
+**JBD DD-frame protocol** (generic JBD BMS, protocol `jbd` in config, legacy fallback):  
+Service UUID `FF00` · Write char `FF02` · Notify char `FF01`  
+Command: `0xDD 0xA5 0x03 0x00 0xFF 0xFD 0x77` (basic info request)
 
 | Field | Type | Unit | Source | Notes |
 |-------|------|------|--------|-------|
-| `soc` | `number` | % 0–100 | byte 19 | RSOC field |
-| `voltage` | `number` | V | bytes 0–1 | `raw / 100` |
-| `current` | `number` | A | bytes 2–3 | signed int16, `raw / 100`; positive = charging |
-| `power` | `number` | W | derived | `abs(voltage × current)` |
+| `soc` | `number` | % 0–100 | protocol-specific | RSOC field |
+| `voltage` | `number` | V | protocol-specific | total pack voltage |
+| `current` | `number\|null` | A | protocol-specific | signed; positive = charging; null if not available |
+| `power` | `number\|null` | W | derived | `abs(voltage × current)`; null if current null |
 | `status` | `string` | — | derived | `'charging'` / `'discharging'` / `'idle'` (±0.5 A threshold) |
-| `temperature` | `number\|null` | °C | bytes 23+ | first NTC: `(raw - 2731) / 10`; null if no NTC |
+| `temperature` | `number\|null` | °C | protocol-specific | first NTC sensor; null if not present |
+| `cells` | `number[]\|null` | V | protocol-specific | per-cell voltages in V; null if not available |
 | `ts` | `number` | ms | — | `Date.now()` at read time |
 
 ### 7.2 SolarReading
@@ -244,11 +253,31 @@ Block framing: accumulate lines until `Checksum\t<byte>`; block sum mod 256 must
 
 #### Fallback: Victron BLE (Instant Readout)
 
-Encryption: AES-128-CTR. Key: 32-char hex from VictronConnect → Product info → Advertisement key. IV: 2-byte counter from advertisement, zero-padded to 16 bytes.
+Passive advertisement scanning — no GATT connection. Company ID `0x02E1`. Minimum mfr length: 22 bytes.
+
+**Encryption:** AES-128-CTR. Key: 32-char hex from VictronConnect → Product info → Advertisement key.
+
+| mfr offset | Content |
+|------------|---------|
+| [2] | Record marker `0x10` |
+| [6] | Record type `0x01` = solar charger |
+| [7:8] | IV: LE uint16, zero-padded to 16 bytes |
+| [9] | `key[0]` check byte — must match first byte of advertisement key |
+| [10:] | 12-byte AES-128-CTR ciphertext |
+
+**Decrypted payload** (offsets within plaintext):
+
+| Byte(s) | Field | Scale |
+|---------|-------|-------|
+| [0] | Charge state (`CS`) | mapped via §7.4 |
+| [2:3] | Battery voltage | LE uint16 / 100 → V |
+| [4:5] | Battery current | LE int16 / 10 → A |
+| [6:7] | Yield today | LE uint16 / 100 → kWh |
+| [8:9] | PV power | LE uint16 → W |
 
 | Available via BLE | Not available via BLE |
 |-------------------|-----------------------|
-| `pvPower`, `batteryCurrent`, `batteryVoltage`, `mode`, `yieldToday` | `pvVoltage`, `pvCurrent` (emitted as `null`) |
+| `pvPower`, `batteryCurrent`, `batteryVoltage`, `mode`, `yieldToday` | `pvVoltage`, `pvCurrent`, `mpptMode` (emitted as `null`, hidden in UI) |
 
 > **PV voltage is not transmitted in the BLE advertisement payload.** Use VE.Direct if PV voltage is required.
 
@@ -414,13 +443,13 @@ Match solar-master exactly:
 - Circular SoC gauge (270° SVG arc): emerald >50 %, amber 20–50 %, red <20 %
 - `GAUGE_START = 135°` (bottom-left), sweeps clockwise to bottom-right
 - Status badge: `CHARGING` (emerald) / `DISCHARGING` (amber) / `IDLE` (slate)
+- **Staleness model:** `warn` (age ≥ 2 × pollInterval) shows a grey age label beside the badge; `overlay` (age ≥ 5 × pollInterval) shows a translucent overlay over the still-visible last reading. No overlay is shown for a brief disconnect — the last data stays visible until 5 missed polls.
 
 ### SolarCard
 
-- PV section: voltage, current, power (amber)
-- Battery-side section: current (blue), voltage, yield today (emerald)
-- Charge mode badge colour-coded per §7.3
-- PV voltage and current show `—` when using BLE driver (not available in advertisement)
+- PV section: voltage, current, power (amber). When `pvVoltage` and `pvCurrent` are both `null` (BLE driver), the section collapses to a single power value — the unavailable fields are hidden entirely rather than showing `—`.
+- Battery-side section: current (blue), voltage, yield today (emerald). `mpptMode` is hidden when `null` (not available via BLE); `yieldToday` expands to full width.
+- Charge mode badge colour-coded per §7.4.
 
 ### PowerFlow
 
@@ -557,6 +586,11 @@ sudo journalctl -u kiosk -f          # Pi Zero 2 W only
 | OI-12 | 512 MB swap creation — `dphys-swapfile` absent | The install script originally used `dphys-swapfile` to create swap. This utility is not installed on Debian Trixie. Replaced with `fallocate -l 512M /var/swap` + `mkswap` + `swapon` + an `/etc/fstab` entry, guarded by a check that skips creation if swap is already active. |
 | OI-13 | Firefox profile not loadable | Firefox ESR launched with `--profile /tmp/firefox-kiosk` fails with "profile cannot be loaded" if the directory does not exist at launch time (it is on tmpfs and is empty after each reboot). Fixed by adding `mkdir -p /tmp/firefox-kiosk` immediately before the `firefox-esr` line in `~/.xinitrc`. |
 | OI-14 | Layout overflow — 20 px scrollbar visible | The `SolarCard` natural height (~289 px) exceeded the grid's `minHeight: 260px` constraint, causing a 20 px scroll. Fixed by switching the cards grid to `flex-1 min-h-0` (fills all available flex space without overflowing), reducing gap tokens from `gap-3` to `gap-2` throughout both cards, and removing a stray `mt-1` from the second battery-side row in `SolarCard`. |
+| OI-15 | ECO battery cell 4 voltage wrong (3.328 V instead of ~3.43 V) | `parseCells()` read BE from payload[1]; ECO protocol uses LE uint16 from payload[0]. Fixed in `protocol/eco.js`. |
+| OI-16 | Victron BLE decryption failing despite correct key | Candidate-loop approach tried wrong `(ivOff, encOff)` combinations. Official spec: IV = mfr[7:8] LE uint16, ciphertext = mfr[10:]. Rewrote `decryptMfr()` with fixed offsets; added mfr[9] = key[0] sanity check. Fixed in `reader-solar/src/ble.js`. |
+| OI-17 | Battery BMS reads once after L2 hang, then stops | BlueZ silently stops emitting discover events after L2 hang; `noble.startScanning()` is a no-op if noble believes it is already scanning. Fixed by stop+start in `scheduleReconnect()` and a 60 s watchdog. |
+| OI-18 | BMS disconnects after first successful read | Back-to-back BLE write commands saturated the BMS. Fixed by adding 150 ms delay between commands in `sendNext()`. |
+| OI-19 | "null A / null W" shown in battery card | ECO protocol current/power is null before first read; template literals produced the string "null". Fixed with `?? 0` fallback. |
 
 ---
 
@@ -564,4 +598,4 @@ sudo journalctl -u kiosk -f          # Pi Zero 2 W only
 
 | # | Topic | Status |
 |---|-------|--------|
-| OO-1 | BLE end-to-end verification | **Verified.** JBD BMS (battery), Victron SmartSolar (BLE), and intAct Battery-Guard / BM6 (starter) all confirmed working with real hardware on Pi Zero 2 W. SoC, voltage, current, temperature, and charge mode display correctly. Several BLE-specific bugs found and fixed during verification (see Bug-fixes.md). |
+| OO-1 | BLE end-to-end verification | **Verified.** ECO AA-frame BMS (battery), Victron SmartSolar (BLE), and intAct Battery-Guard / BM6 (starter) all confirmed working with real hardware on Pi Zero 2 W. All three cards display live data simultaneously. BLE-specific bugs fixed: L2 hang watchdog + backoff, inter-command delay, Victron decryption offset, ECO cell voltage parsing (see Bug-fixes.md and CHANGES.md session 2026-05-18). |
