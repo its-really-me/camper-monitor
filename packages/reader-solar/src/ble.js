@@ -16,9 +16,9 @@
 const { EventEmitter } = require('events')
 const crypto           = require('crypto')
 
-const VICTRON_COMPANY_ID          = 0x02E1
-// 0x01 = older firmware; 0x10 = newer firmware (devices manufactured ~2024+)
-const SOLAR_CHARGER_RECORD_TYPES  = new Set([0x01, 0x10])
+const VICTRON_COMPANY_ID    = 0x02E1
+const RECORD_MARKER         = 0x10   // mfr[2]: identifies a Victron Instant Readout ad
+const SOLAR_CHARGER_TYPE    = 0x01   // mfr[6]: record type for solar charger
 
 const CS_MODES = {
   0:   'Off',
@@ -32,19 +32,14 @@ const CS_MODES = {
   252: 'External Control',
 }
 
-function decryptPayload(encrypted, keyHex, nonce) {
-  const key    = Buffer.from(keyHex, 'hex')
-  const cipher = crypto.createDecipheriv('aes-128-ctr', key, nonce)
-  return Buffer.concat([cipher.update(encrypted), cipher.final()])
-}
-
-function buildNonce(ivOff, mfr) {
+// IV is mfr[7:8] LE, zero-padded to 16 bytes. Ciphertext starts at mfr[10].
+// Spec: https://communityarchive.victronenergy.com/storage/attachments/extra-manufacturer-data-2022-12-14.pdf
+function decryptMfr(mfr, keyHex) {
+  const key   = Buffer.from(keyHex, 'hex')
   const nonce = Buffer.alloc(16)
-  if (ivOff === null)   return nonce                                   // all-zero
-  if (ivOff === 'n3')  { mfr.copy(nonce, 0, 3, 6); return nonce }    // 3-byte: mfr[3:6]
-  if (ivOff === 'n4')  { mfr.copy(nonce, 0, 3, 7); return nonce }    // 4-byte: mfr[3:7]
-  nonce.writeUInt16LE(mfr.readUInt16LE(ivOff), 0)
-  return nonce
+  nonce.writeUInt16LE(mfr.readUInt16LE(7), 0)   // IV_lo=mfr[7], IV_hi=mfr[8]
+  const cipher = crypto.createDecipheriv('aes-128-ctr', key, nonce)
+  return Buffer.concat([cipher.update(mfr.slice(10)), cipher.final()])
 }
 
 function parseSolarCharger(decrypted) {
@@ -97,9 +92,8 @@ function createBleReader(config) {
     readingsTotal:       0,
     lastReadingAt:       null,
     lastReading:         null,
-    lastDecryptedHex:       null,   // raw decrypted bytes for byte-layout debugging
-    lastCandidateAttempts:  null,   // [{ivOff, encOff, hex, ok}] for each candidate tried
-    // last 10 unique addresses seen (for spotting the target in scan)
+    lastDecryptedHex:    null,
+    // last 100 unique addresses seen (for spotting the target in scan)
     recentDevices:       [],
     devicesSeenTotal:    0,   // total unique addresses ever seen (never decrements)
   }
@@ -133,13 +127,13 @@ function createBleReader(config) {
       companyId:        (mfr?.length >= 2) ? `0x${mfr.readUInt16LE(0).toString(16).padStart(4, '0')}` : null,
       expectedCompanyId: `0x${VICTRON_COMPANY_ID.toString(16).padStart(4, '0')}`,
     }
-    if (!mfr || mfr.length < 7) { diag.macFilterNoMfrData++; return }
+    if (!mfr || mfr.length < 22) { diag.macFilterNoMfrData++; return }
 
     const companyId = mfr.readUInt16LE(0)
     if (companyId !== VICTRON_COMPANY_ID) { diag.macFilterWrongId++; return }
     diag.victronIdPassed++
 
-    if (!SOLAR_CHARGER_RECORD_TYPES.has(mfr[2])) return
+    if (mfr[2] !== RECORD_MARKER || mfr[6] !== SOLAR_CHARGER_TYPE) return
     diag.solarChargerPassed++
 
     if (!keyHex || keyHex.length !== 32) {
@@ -147,30 +141,23 @@ function createBleReader(config) {
       return
     }
 
-    // Candidates: [ivOff, encOff] where ivOff is a uint16 offset into mfr, null = zero nonce,
-    // 'n3' = 3-byte nonce mfr[3:6], 'n4' = 4-byte nonce mfr[3:7].
-    const candidates = mfr[2] === 0x10
-      ? [[4, 7], [4, 6], [3, 5], [5, 7], [3, 7], [null, 7], ['n3', 7], ['n4', 7]]
-      : [[4, 6]]
+    // mfr[9] = key[0] transmitted unencrypted — mismatch means wrong key or key has changed
+    const keyBuf = Buffer.from(keyHex, 'hex')
+    if (mfr[9] !== keyBuf[0]) {
+      diag.parseErrors++
+      diag.lastDecryptedHex = null
+      events.emit('error', new Error(`Key check failed: advertisement key may have changed (expected 0x${keyBuf[0].toString(16)}, got 0x${mfr[9].toString(16)})`))
+      return
+    }
 
     let reading = null
-    diag.lastCandidateAttempts = []
-    for (const [ivOff, encOff] of candidates) {
-      if (reading) break
-      if (encOff >= mfr.length) continue
-      if (typeof ivOff === 'number' && ivOff + 1 >= mfr.length) continue
-      try {
-        const nonce = buildNonce(ivOff, mfr)
-        const dec   = decryptPayload(mfr.slice(encOff), keyHex, nonce)
-        const hex   = dec.toString('hex')
-        diag.lastDecryptedHex = hex
-        reading = parseSolarCharger(dec)
-        diag.lastCandidateAttempts.push({ ivOff, encOff, hex, ok: !!reading })
-      } catch (e) {
-        diag.lastCandidateAttempts.push({ ivOff, encOff, hex: null, ok: false })
-        diag.decryptErrors++
-        events.emit('error', e)
-      }
+    try {
+      const dec = decryptMfr(mfr, keyHex)
+      diag.lastDecryptedHex = dec.toString('hex')
+      reading = parseSolarCharger(dec)
+    } catch (e) {
+      diag.decryptErrors++
+      events.emit('error', e)
     }
 
     if (reading) {
@@ -245,8 +232,7 @@ function createBleReader(config) {
         readingsTotal:       diag.readingsTotal,
         lastReadingAt:       diag.lastReadingAt,
         lastReading:         diag.lastReading,
-        lastDecryptedHex:       diag.lastDecryptedHex,
-        lastCandidateAttempts:  diag.lastCandidateAttempts,
+        lastDecryptedHex:    diag.lastDecryptedHex,
         secondsSinceReading:    diag.lastReadingAt ? +((Date.now() - diag.lastReadingAt) / 1000).toFixed(1) : null,
       }
     },
