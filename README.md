@@ -16,6 +16,7 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 - PV voltage, current, power (voltage and current not available via BLE)
 - Battery-side current and voltage
 - Charge mode: Bulk / Absorption / Float / Off / …
+- MPPT mode (VE.Direct only)
 - Yield today (kWh)
 - Animated power flow diagram
 
@@ -625,9 +626,10 @@ Echtzeit-Dashboard für eine 12-V-LiFePO4-Aufbaubatterie und den Victron SmartSo
 - Temperatur
 
 **Solarladeregler (Victron SmartSolar 75/15 via VE.Direct oder Bluetooth)**
-- PV-Spannung, -Strom, -Leistung
+- PV-Spannung, -Strom, -Leistung (Spannung und Strom nicht via BLE verfügbar)
 - Batteriestrom und -spannung (Ausgangsseite)
 - Lademodus: Bulk / Absorption / Erhaltung / Aus / …
+- MPPT-Modus (nur VE.Direct)
 - Ertrag heute (kWh)
 - Animiertes Leistungsflussdiagramm
 
