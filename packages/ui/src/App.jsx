@@ -48,10 +48,12 @@ export default function App() {
               battery={state?.battery ?? null}
               connected={state?.batteryConnected ?? false}
               label={t('bodyBattery')}
+              pollInterval={15_000}
             />
             <SolarCard
               solar={state?.solar ?? null}
               connected={state?.solarConnected ?? false}
+              pollInterval={10_000}
             />
             {hasStarter && (
               <BatteryCard
@@ -59,6 +61,7 @@ export default function App() {
                 connected={state.starterConnected ?? false}
                 label={t('starterBattery')}
                 compact
+                pollInterval={300_000}
               />
             )}
           </div>

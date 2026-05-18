@@ -37,18 +37,18 @@ function fmtV(v) { return v != null ? `${v} V` : '—' }
 function fmtA(a) { return a != null ? `${a} A` : '—' }
 function fmtW(w) { return w != null ? `${w} W` : '—' }
 
-export function SolarCard({ solar, connected }) {
-  const t                     = useT()
-  const { stale, ageSeconds } = useStale(solar?.ts)
-  const modeKey               = SOLAR_MODE_KEY[solar?.mode] ?? 'modeOff'
-  const modeColors            = MODE_COLORS[solar?.mode] ?? { bg: 'bg-slate-700/60', text: 'text-slate-400' }
+export function SolarCard({ solar, connected, pollInterval = 10_000 }) {
+  const t                              = useT()
+  const { warn, overlay, ageSeconds }  = useStale(solar?.ts, pollInterval)
+  const modeKey                        = SOLAR_MODE_KEY[solar?.mode] ?? 'modeOff'
+  const modeColors                     = MODE_COLORS[solar?.mode] ?? { bg: 'bg-slate-700/60', text: 'text-slate-400' }
 
   let overlayTitle  = null
   let overlayDetail = null
   if (!solar) {
     overlayTitle  = t('scanning')
     overlayDetail = t('lookingForSolar')
-  } else if (stale) {
+  } else if (overlay) {
     overlayTitle  = t('noData')
     overlayDetail = t('sinceLastReading', { age: fmtAge(ageSeconds) })
   }
@@ -90,9 +90,14 @@ export function SolarCard({ solar, connected }) {
         </div>
       </div>
 
-      {/* Mode badge */}
-      <div className={`self-start text-xs font-semibold px-3 py-1 rounded-full ${modeColors.bg} ${modeColors.text}`}>
-        {t(modeKey)}
+      {/* Mode badge + stale age */}
+      <div className="flex items-center gap-2">
+        <div className={`text-xs font-semibold px-3 py-1 rounded-full ${modeColors.bg} ${modeColors.text}`}>
+          {t(modeKey)}
+        </div>
+        {warn && !overlay && ageSeconds != null && (
+          <span className="text-xs text-slate-500">{fmtAge(ageSeconds)}</span>
+        )}
       </div>
     </div>
   )

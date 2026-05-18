@@ -13,15 +13,22 @@ export function fmtAge(seconds) {
   return `${Math.round(seconds / 3600)}h`
 }
 
-export function useStale(ts, thresholdMs = 30_000) {
+// warn  — data older than 2 missed polls: show age indicator, keep data visible
+// overlay — data older than 5 missed polls: show blocking overlay
+export function useStale(ts, pollInterval = 15_000) {
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 10_000)
+    const id = setInterval(() => setNow(Date.now()), 5_000)
     return () => clearInterval(id)
   }, [])
 
-  if (!ts) return { stale: false, ageSeconds: null }
-  const ageSeconds = Math.round((now - ts) / 1000)
-  return { stale: ageSeconds * 1000 >= thresholdMs, ageSeconds }
+  if (!ts) return { warn: false, overlay: false, ageSeconds: null }
+  const ageMs      = now - ts
+  const ageSeconds = Math.round(ageMs / 1000)
+  return {
+    warn:    ageMs >= 2 * pollInterval,
+    overlay: ageMs >= 5 * pollInterval,
+    ageSeconds,
+  }
 }

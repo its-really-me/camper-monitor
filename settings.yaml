@@ -3,7 +3,7 @@ readers:
     driver: ble                       # 'ble' | 'mock'  — override with BATTERY_DRIVER env var
     protocol: eco                     # 'jbd' (DD-frame) | 'eco' (AA-frame, Eco-Worthy 897A etc.)
     macAddress: "AA:BB:CC:DD:EE:FF"   # BLE MAC of your Eco-worthy BMS
-    pollInterval: 5000                # ms
+    pollInterval: 15000               # ms
 
   solar:
     driver: ble                  # 'vedirect' | 'ble' | 'mock'  — override with SOLAR_DRIVER env var
@@ -12,12 +12,12 @@ readers:
     # Victron BLE (driver: ble)
     macAddress: ""
     advertisementKey: "fb22965b5e047779a766f9f61c7193c5"              # 32-char hex from VictronConnect → device → info → advertisement key
-    pollInterval: 2000                # ms (mock / ble only — VE.Direct sends ~1 s naturally)
+    pollInterval: 10000               # ms (mock / ble only — VE.Direct sends ~1 s naturally)
 
   starter:
     driver: mock
     macAddress: ""
-    pollInterval: 5000
+    pollInterval: 300000
 
 server:
   port: 3000

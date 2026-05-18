@@ -78,20 +78,17 @@ const STATUS_KEY = {
   idle:        'idle',
 }
 
-export function BatteryCard({ battery, connected, label, compact = false }) {
-  const t                          = useT()
-  const { stale, ageSeconds }      = useStale(battery?.ts)
-  const statusKey                  = STATUS_KEY[battery?.status] ?? 'idle'
+export function BatteryCard({ battery, connected, label, compact = false, pollInterval = 15_000 }) {
+  const t                            = useT()
+  const { warn, overlay, ageSeconds } = useStale(battery?.ts, pollInterval)
+  const statusKey                    = STATUS_KEY[battery?.status] ?? 'idle'
 
   let overlayTitle  = null
   let overlayDetail = null
-  if (!connected && !battery) {
+  if (!battery) {
     overlayTitle  = t('scanning')
     overlayDetail = t('lookingForDevice')
-  } else if (!connected) {
-    overlayTitle  = t('disconnected')
-    overlayDetail = ageSeconds != null ? t('lastDataAgo', { age: fmtAge(ageSeconds) }) : null
-  } else if (stale) {
+  } else if (overlay) {
     overlayTitle  = t('noData')
     overlayDetail = t('sinceLastReading', { age: fmtAge(ageSeconds) })
   }
@@ -133,13 +130,18 @@ export function BatteryCard({ battery, connected, label, compact = false }) {
         </div>
       </div>
 
-      {/* Status badge */}
-      <div className={`self-start text-xs font-semibold px-3 py-1 rounded-full ${
-        battery?.status === 'charging'    ? 'bg-emerald-900/60 text-emerald-400' :
-        battery?.status === 'discharging' ? 'bg-amber-900/60 text-amber-400' :
-                                            'bg-slate-700/60 text-slate-400'
-      }`}>
-        {t(statusKey)}
+      {/* Status badge + stale age */}
+      <div className="flex items-center gap-2">
+        <div className={`text-xs font-semibold px-3 py-1 rounded-full ${
+          battery?.status === 'charging'    ? 'bg-emerald-900/60 text-emerald-400' :
+          battery?.status === 'discharging' ? 'bg-amber-900/60 text-amber-400' :
+                                              'bg-slate-700/60 text-slate-400'
+        }`}>
+          {t(statusKey)}
+        </div>
+        {warn && !overlay && ageSeconds != null && (
+          <span className="text-xs text-slate-500">{fmtAge(ageSeconds)}</span>
+        )}
       </div>
     </div>
   )
