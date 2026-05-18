@@ -1,6 +1,11 @@
 # Camper Monitor
 
-Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT 75/15, running on a Raspberry Pi Zero with an attached 1024×600 display.
+Real-time dashboard for a camper van 12V battery system, running on a Raspberry Pi Zero with an attached 1024×600 display. A Node.js server reads live data from BLE and VE.Direct devices and streams it to a React dashboard via Server-Sent Events.
+
+**Supported devices:**
+- **Body battery (Aufbaubatterie):** 12V LiFePO4 via BLE — ECO AA-frame BMS (Eco-Worthy, confirmed working) or standard JBD/Daly-OEM BMS (selectable, not yet verified on hardware)
+- **Solar charger:** Victron SmartSolar MPPT — BLE Instant Readout (passive, no cable) or VE.Direct USB cable (full data including PV voltage)
+- **Starter battery (Starterbatterie, optional):** intAct Battery-Guard / BM6 via BLE
 
 ![Dashboard](docs/screenshot.png)
 
@@ -88,7 +93,7 @@ git clone https://github.com/its-really-me/camper-monitor.git ~/camper-monitor
 sudo bash ~/camper-monitor/scripts/install.sh
 ```
 
-The installer works in the cloned directory (does not copy to `/opt`).
+The installer copies the project to `/opt/camper-monitor/` and runs all systemd services from there.
 
 The installer will:
 - Install Node.js 20 (via NodeSource)
@@ -123,6 +128,8 @@ It will ask for:
 - Screen-blank idle timeout in minutes — both Pi Zero W and Pi Zero 2 W (`0` to disable)
 
 It writes `settings.yaml`, `.env`, systemd service files (and `~/.xinitrc` on Pi Zero 2 W), then enables them.
+
+> **Execution path — important:** All services run from `/opt/camper-monitor/`. Configuration changes must be made to `/opt/camper-monitor/settings.yaml` — that is the file the running server reads. The clone at `~/camper-monitor` is only a staging area for pulling updates; use the rsync command in [Deploying updates](#deploying-updates) to apply them to `/opt`. The rsync intentionally excludes `settings.yaml` so your real device config is never overwritten by a `git pull`.
 
 > **Web-based setup alternative:** If `settings.yaml` is missing, the server automatically serves a setup form at `http://<pi-ip>:3000/setup`. Fill it in from any browser on the local network — no SSH required. The server writes the config and restarts into the dashboard automatically. The form is also accessible at `/setup` at any time to reconfigure.
 
@@ -169,7 +176,7 @@ The SmartSolar encrypts its BLE broadcasts with a per-device 128-bit key. Retrie
 2. Tap the device name at the top → **Product info**.
 3. Scroll down to **Advertisement key** — copy the 32-character hex string (e.g. `a1b2c3d4e5f6...`).
 
-> The key never changes unless you reset the device. Store it somewhere safe.
+> The key never changes unless you reset the device or change the PIN. Store it somewhere safe.
 
 ### Step 2 — Find the MAC address
 
@@ -186,6 +193,8 @@ sudo bluetoothctl
 On macOS the Bluetooth address is shown as a UUID in `bluetoothctl` alternatives; use the VictronConnect device list to confirm.
 
 ### Step 3 — Configure `settings.yaml`
+
+On the Pi, edit `/opt/camper-monitor/settings.yaml`:
 
 ```yaml
 readers:
@@ -242,7 +251,7 @@ sudo setcap cap_net_raw+eip $(which node)   # allow Node.js to scan BLE without 
 
 ### Switching between Bluetooth and VE.Direct
 
-Change the `driver` value in `settings.yaml` — no code changes needed:
+Change the `driver` value in `/opt/camper-monitor/settings.yaml` — no code changes needed:
 
 ```yaml
 # Bluetooth (no cable, reduced data)
@@ -278,7 +287,7 @@ sudo bluetoothctl
 > quit
 ```
 
-Copy the `AA:BB:CC:DD:EE:FF` address into `settings.yaml → readers.battery.macAddress`.
+Copy the `AA:BB:CC:DD:EE:FF` address into `/opt/camper-monitor/settings.yaml → readers.battery.macAddress`.
 
 ### Victron SmartSolar (BLE driver only)
 
@@ -441,7 +450,7 @@ curl -s localhost:3000/diagnostics | python3 -c \
   "import sys,json; [print(x) for x in json.load(sys.stdin)['solar']['recentDevices']]"
 ```
 
-If the target device appears but with a different MAC than configured, re-run `sudo bash scripts/configure.sh` to update `settings.yaml`.
+If the target device appears but with a different MAC than configured, re-run `sudo bash /opt/camper-monitor/scripts/configure.sh` to update `settings.yaml`.
 
 ### Solar BLE — no Victron advertisements (`victron=0`)
 
@@ -616,7 +625,12 @@ The BLE protocol work in this project stands on the shoulders of others who docu
 
 # Camper Monitor — Deutsche Übersetzung
 
-Echtzeit-Dashboard für eine 12-V-LiFePO4-Aufbaubatterie und den Victron SmartSolar MPPT 75/15, betrieben auf einem Raspberry Pi Zero mit angeschlossenem 1024×600-Display.
+Echtzeit-Dashboard für ein 12-V-Batteriesystem im Wohnmobil, betrieben auf einem Raspberry Pi Zero mit angeschlossenem 1024×600-Display. Ein Node.js-Server liest Live-Daten von BLE- und VE.Direct-Geräten und überträgt sie per Server-Sent Events an ein React-Dashboard.
+
+**Unterstützte Geräte:**
+- **Bordbatterie (Aufbaubatterie):** 12-V-LiFePO4 via Bluetooth — ECO AA-frame-BMS (Eco-Worthy, bestätigt funktionsfähig) oder Standard-JBD/Daly-OEM-BMS (auswählbar, noch nicht auf Hardware verifiziert)
+- **Solarladeregler:** Victron SmartSolar MPPT — BLE Instant Readout (passiv, kein Kabel) oder VE.Direct-USB-Kabel (vollständige Daten inkl. PV-Spannung)
+- **Starterbatterie (optional):** intAct Battery-Guard / BM6 via Bluetooth
 
 ## Was angezeigt wird
 
@@ -642,7 +656,7 @@ Echtzeit-Dashboard für eine 12-V-LiFePO4-Aufbaubatterie und den Victron SmartSo
 
 ---
 
-## Lokale Entwicklung (ohne Hardware)
+## Lokale Entwicklung auf dem Mac (ohne Hardware)
 
 Benötigt **Node.js 20+**. Installation von [nodejs.org](https://nodejs.org) oder per Paketmanager:
 
@@ -700,7 +714,7 @@ git clone https://github.com/its-really-me/camper-monitor.git ~/camper-monitor
 sudo bash ~/camper-monitor/scripts/install.sh
 ```
 
-Der Installer:
+Der Installer kopiert das Projekt nach `/opt/camper-monitor/` und betreibt alle Systemd-Dienste von dort. Er:
 - Installiert Node.js 20 (über NodeSource)
 - Setzt Boot-Ziel auf CLI und aktiviert SSH
 - Erstellt eine 512-MB-Auslagerungsdatei (falls keine vorhanden)
@@ -733,6 +747,8 @@ Abgefragt werden:
 - Bildschirm-Abschalttimeout in Minuten (`0` zum Deaktivieren)
 
 Der Assistent schreibt `settings.yaml`, `.env` und Systemd-Servicedateien.
+
+> **Ausführungspfad — wichtig:** Alle Dienste laufen aus `/opt/camper-monitor/`. Konfigurationsänderungen müssen in `/opt/camper-monitor/settings.yaml` vorgenommen werden — das ist die Datei, die der laufende Server liest. Der Klon unter `~/camper-monitor` dient nur als Staging-Bereich für Updates; mit dem rsync-Befehl aus dem Abschnitt [Updates einspielen](#updates-einspielen) werden sie nach `/opt` übertragen. Das rsync schließt `settings.yaml` bewusst aus, damit die echte Gerätekonfiguration nicht durch ein `git pull` überschrieben wird.
 
 > **Webbasierte Einrichtungsalternative:** Fehlt `settings.yaml`, stellt der Server automatisch ein Einrichtungsformular unter `http://<pi-ip>:3000/setup` bereit. Im Browser ausfüllen — kein SSH erforderlich.
 
@@ -778,6 +794,8 @@ In der **VictronConnect**-App:
 2. Auf den Gerätenamen tippen → **Produktinfo**.
 3. Zum **Advertisement key** scrollen — den 32-stelligen Hex-String kopieren.
 
+> Der Schlüssel ändert sich nicht, solange das Gerät nicht auf Werkseinstellungen zurückgesetzt oder die PIN geändert wird. Sicher aufbewahren.
+
 ### Schritt 2 — MAC-Adresse herausfinden
 
 Auf dem Pi:
@@ -790,6 +808,8 @@ sudo bluetoothctl
 ```
 
 ### Schritt 3 — `settings.yaml` konfigurieren
+
+Auf dem Pi `/opt/camper-monitor/settings.yaml` bearbeiten:
 
 ```yaml
 readers:
