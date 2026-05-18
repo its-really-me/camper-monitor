@@ -273,16 +273,24 @@ function createBleReader(config) {
     connecting = false
     diag.reconnectScheduledAt = Date.now()
     reconnTimer = setTimeout(() => {
-      if (running) noble.startScanning([], true)
+      if (!running) return
+      noble.stopScanning()
+      setTimeout(() => {
+        if (running && !connecting && writeChar === null) noble.startScanning([], true)
+      }, 500)
     }, 5000)
   }
 
   // Safety net: if we're not connected and not getting readings, prod the scanner.
   // BlueZ on Pi Zero silently stops emitting 'discover' events after an L2 hang.
+  // Must stop then start — startScanning alone is a no-op if noble thinks it's already scanning.
   function startWatchdog() {
     watchdogTimer = setInterval(() => {
       if (!running || connecting || writeChar !== null) return
-      noble.startScanning([], true)
+      noble.stopScanning()
+      setTimeout(() => {
+        if (running && !connecting && writeChar === null) noble.startScanning([], true)
+      }, 500)
     }, 60_000)
   }
 
