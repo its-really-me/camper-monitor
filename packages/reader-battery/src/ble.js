@@ -29,6 +29,7 @@ function createBleReader(config) {
   let writeChar    = null
   let pollTimer    = null
   let reconnTimer  = null
+  let watchdogTimer = null
   let running      = false
   let nobleReady   = false
   let connecting   = false
@@ -276,6 +277,15 @@ function createBleReader(config) {
     }, 5000)
   }
 
+  // Safety net: if we're not connected and not getting readings, prod the scanner.
+  // BlueZ on Pi Zero silently stops emitting 'discover' events after an L2 hang.
+  function startWatchdog() {
+    watchdogTimer = setInterval(() => {
+      if (!running || connecting || writeChar !== null) return
+      noble.startScanning([], true)
+    }, 60_000)
+  }
+
   return {
     start() {
       running = true
@@ -311,11 +321,14 @@ function createBleReader(config) {
         diag.scanStartedAt = Date.now()
         noble.startScanning([], false)
       }
+      if (!watchdogTimer) startWatchdog()
     },
     stop() {
       running = false
       clearInterval(pollTimer)
       clearTimeout(reconnTimer)
+      clearInterval(watchdogTimer)
+      watchdogTimer = null
       peripheral?.disconnect()
     },
     diagnostics() {

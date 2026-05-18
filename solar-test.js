@@ -17,6 +17,7 @@ console.log(`Key: ${keyHex}`)
 
 // ── Paste latest mfrHex values from /diagnostics here ─────────────────────
 const SAMPLES = [
+  'e102100275a001d30ffb6f63f6c3a680da246ee9aac4',  // fresh from /diagnostics 2026-05-18
   'e102100275a001edb2fb6b086507751f060c6f3adf2e',
   'e102100275a00189b3fbd71f73a3e83bbfc40d30af89',
   'e102100275a001e7b3fbf5260911c9a72d1aa4bb5a33',
@@ -42,17 +43,11 @@ function keyVariants(k) {
 
 function isPlausible(dec) {
   if (dec.length < 10) return false
-  // Try battV at bytes 2-3 with 10mV resolution (/100) and 1mV resolution (/1000)
-  const battV_10mV  = dec.readUInt16LE(2) / 100    // standard Victron
-  const battV_1mV   = dec.readUInt16LE(2) / 1000   // some newer firmware
-  const battV_1mV_0 = dec.readUInt16LE(0) / 1000   // battV at bytes 0-1 with 1mV
-  const battV_ok = (battV_10mV >= 11 && battV_10mV <= 16.5) ||
-                   (battV_1mV  >= 11 && battV_1mV  <= 16.5) ||
-                   (battV_1mV_0 >= 11 && battV_1mV_0 <= 16.5)
-  if (!battV_ok) return false
-  const battI      = dec.readInt16LE(4) / 10
-  const pvPower    = dec.readUInt16LE(8)
-  return Math.abs(battI) <= 200 && pvPower <= 10000
+  const battV = dec.readUInt16LE(2) / 100    // standard 10mV resolution
+  if (battV < 11 || battV > 16.5) return false
+  const battI   = dec.readInt16LE(4) / 10
+  const pvPower = dec.readUInt16LE(8)
+  return Math.abs(battI) <= 100 && pvPower <= 5000
 }
 
 function fmtDec(dec) {
