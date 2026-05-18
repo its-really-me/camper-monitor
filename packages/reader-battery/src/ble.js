@@ -365,6 +365,7 @@ function createBleReader(config) {
         lastReadingAt:        diag.lastReadingAt,
         lastReading:          diag.lastReading,
         secondsSinceReading:  diag.lastReadingAt ? +((Date.now() - diag.lastReadingAt) / 1000).toFixed(1) : null,
+        ...protocol.diagnostics?.(),
       }
     },
     events,

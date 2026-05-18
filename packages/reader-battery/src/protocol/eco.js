@@ -74,9 +74,10 @@ function parseCells(payload) {
 }
 
 function createProtocol() {
-  let rxBuf     = Buffer.alloc(0)
-  let cells     = null    // most recent cell voltages (attached on next 0x21 reading)
-  let firstPoll = true    // send CMD_INIT once at first poll after connect
+  let rxBuf        = Buffer.alloc(0)
+  let cells        = null    // most recent cell voltages (attached on next 0x21 reading)
+  let firstPoll    = true    // send CMD_INIT once at first poll after connect
+  let lastCmd22Hex = null    // raw payload bytes for debugging cell offset issues
 
   return {
     name:        'eco',
@@ -108,7 +109,7 @@ function createProtocol() {
         const payload = frame.slice(3, frame.length - 2)
 
         if (cmd === 0x22) {
-          // Cell voltages — store and wait for the next 0x21 status frame to emit
+          lastCmd22Hex = payload.toString('hex')
           cells = parseCells(payload)
         } else if (cmd === 0x21) {
           const base = parseStatus(payload)
@@ -118,6 +119,8 @@ function createProtocol() {
 
       return reading
     },
+
+    diagnostics() { return { lastCmd22Hex } },
   }
 }
 
