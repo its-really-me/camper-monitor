@@ -13,16 +13,17 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 - Temperature
 
 **Solar Charger (Victron SmartSolar 75/15 via VE.Direct or Bluetooth)**
-- PV voltage, current, power
+- PV voltage, current, power (voltage and current not available via BLE)
 - Battery-side current and voltage
 - Charge mode: Bulk / Absorption / Float / Off / …
 - Yield today (kWh)
 - Animated power flow diagram
 
 **Starter Battery — Starterbatterie (intAct Battery-Guard / BM6, optional)**
-- Voltage and State of Charge estimated from open-circuit voltage
+- Voltage
+- State of Charge
 - Temperature
-- Status: Charging (when alternator is running, >13.2 V) / Idle
+- Status: Charging / Idle
 
 ---
 
@@ -631,9 +632,10 @@ Echtzeit-Dashboard für eine 12-V-LiFePO4-Aufbaubatterie und den Victron SmartSo
 - Animiertes Leistungsflussdiagramm
 
 **Starterbatterie (intAct Battery-Guard / BM6, optional)**
-- Spannung und Ladezustand (aus Ruhespannung abgeleitet)
+- Spannung
+- Ladezustand
 - Temperatur
-- Status: Laden (wenn Lichtmaschine läuft, >13,2 V) / Standby
+- Status: Laden / Standby
 
 ---
 
