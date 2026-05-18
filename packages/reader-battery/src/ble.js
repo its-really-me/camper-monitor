@@ -81,11 +81,12 @@ function createBleReader(config) {
   function poll() {
     diag.lastPollAt = Date.now()
     const cmds = protocol.poll()
+    // 150 ms gap between commands — some BMS firmware drops the connection if commands arrive back-to-back
     function sendNext(i) {
       if (i >= cmds.length || !writeChar) return
       writeChar.write(cmds[i], false, err => {
         if (err) { events.emit('error', new Error(`BMS write: ${err.message}`)); return }
-        sendNext(i + 1)
+        setTimeout(() => sendNext(i + 1), 150)
       })
     }
     sendNext(0)
