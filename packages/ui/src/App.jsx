@@ -61,7 +61,7 @@ export default function App() {
                 connected={state.starterConnected ?? false}
                 label={t('starterBattery')}
                 compact
-                pollInterval={300_000}
+                pollInterval={30_000}
               />
             )}
           </div>

@@ -15,9 +15,9 @@ readers:
     pollInterval: 10000               # ms (mock / ble only — VE.Direct sends ~1 s naturally)
 
   starter:
-    driver: mock
+    driver: bm6
     macAddress: ""
-    pollInterval: 300000
+    pollInterval: 30000
 
 server:
   port: 3000
