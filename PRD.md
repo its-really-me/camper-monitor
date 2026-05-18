@@ -287,34 +287,17 @@ Source: intAct Battery-Guard / BM6 via BLE (protocol reverse-engineered — see 
 Service: `0xFFF0` · Write: `0xFFF3` (handshake) · Notify: `0xFFF4` (encrypted readings)  
 Encryption: AES-128-CBC, static key `"leagend\xff\xfe010009"` (16 bytes), zero IV — no per-device pairing needed.
 
+Decrypted frame header: `0xD1 0x55` at bytes 0–1 (used for frame validation).
+
 | Field | Type | Unit | Source | Notes |
 |-------|------|------|--------|-------|
-| `voltage` | `number` | V | bytes 2–3 | BE uint16 / 100 |
-| `temperature` | `number\|null` | °C | bytes 4–5 | `(raw - 2731) / 10`; null if unreasonable |
-| `soc` | `number\|null` | % | derived | Estimated from OCV lookup table (see below); `null` when charging |
+| `voltage` | `number` | V | bytes 7–8 | BE uint16 / 100 |
+| `temperature` | `number\|null` | °C | bytes 4–5 | byte[4] + byte[5]/10 (integer + tenths °C); null if out of range (−40…80 °C) |
+| `soc` | `number` | % | byte 6 | Device's own SoC tracking — read directly, not derived from voltage |
 | `current` | `null` | — | — | Not available from BM6 protocol |
 | `power` | `null` | — | — | Not available from BM6 protocol |
-| `status` | `string` | — | derived | `'charging'` when voltage > 13.2 V (alternator); `'idle'` otherwise |
+| `status` | `string` | — | derived | `'charging'` when voltage > 13.2 V (alternator running); `'idle'` otherwise |
 | `ts` | `number` | ms | — | `Date.now()` at read time |
-
-**SoC estimation (open-circuit voltage only):**  
-Valid only when engine is off and battery is at rest. When voltage > 13.2 V the alternator is active and SoC is suppressed (`null`); the UI shows "Charging" instead.
-
-| Voltage ≥ | SoC |
-|-----------|-----|
-| 12.70 V | 100 % |
-| 12.60 V | 95 % |
-| 12.50 V | 90 % |
-| 12.40 V | 80 % |
-| 12.30 V | 70 % |
-| 12.20 V | 60 % |
-| 12.10 V | 50 % |
-| 12.00 V | 40 % |
-| 11.90 V | 30 % |
-| 11.80 V | 20 % |
-| 11.70 V | 10 % |
-| 11.60 V | 5 % |
-| < 11.60 V | 0 % |
 
 ### 7.4 Victron Charge State Codes → `mode`
 
@@ -395,7 +378,7 @@ When a driver is set to `mock`, the reader generates **realistic, time-varying d
 
 - **Battery mock** (`reader-battery`): SoC drifts between 97 % (fully charged) and 20 % (floor); transitions between charging and discharging automatically.
 - **Solar mock** (`reader-solar`): sine-based day curve — 0 W at night, peak ~120 W at solar noon (07:00–19:30 window). Charge mode transitions Bulk → Absorption → Float.
-- **Starter mock** (`reader-starter`): sine-wave voltage oscillation between 11.8 V and 13.5 V over a 60-tick cycle. Passes through every entry in the OCV→SoC table. Voltage above 13.2 V shows "Charging" (simulating the alternator phase); below 13.2 V shows estimated SoC.
+- **Starter mock** (`reader-starter`): sine-wave voltage oscillation between 11.8 V and 13.5 V over a 60-tick cycle. SoC oscillates in step with voltage. Voltage above 13.2 V shows "Charging" (simulating the alternator phase).
 - All mocks emit at the same `pollInterval` as their real counterparts.
 
 In development (`npm run dev`), set `BATTERY_DRIVER=mock` and `SOLAR_DRIVER=mock` in `.env`. The starter battery is enabled by adding a `starter:` block to `settings.yaml` with `driver: mock`.
