@@ -122,10 +122,10 @@ export function BatteryCard({ battery, connected, label, compact = false }) {
             <>
               <div className="grid grid-cols-2 gap-2">
                 <Stat label={t('voltage')} value={battery ? `${battery.voltage} V` : '—'} color="#94a3b8" />
-                <Stat label={t('current')} value={battery ? `${battery.current > 0 ? '+' : ''}${battery.current} A` : '—'} color="#60a5fa" />
+                <Stat label={t('current')} value={battery ? `${(battery.current ?? 0) > 0 ? '+' : ''}${battery.current ?? 0} A` : '—'} color="#60a5fa" />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Stat label={t('power')} value={battery ? `${battery.power} W` : '—'} color="#facc15" />
+                <Stat label={t('power')} value={battery ? `${battery.power ?? 0} W` : '—'} color="#facc15" />
                 <Stat label={t('temp')}  value={battery?.temperature != null ? `${battery.temperature} °C` : '—'} color="#94a3b8" />
               </div>
             </>
