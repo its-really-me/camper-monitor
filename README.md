@@ -6,7 +6,7 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 
 ## What it shows
 
-**Body Battery — Aufbaubatterie (Eco-Worthy LiFePO4, ECO AA-frame BMS via Bluetooth)**
+**Body Battery — (Eco-Worthy LiFePO4, ECO AA-frame BMS via Bluetooth)**
 - State of Charge with animated gauge
 - Voltage, current, power
 - Status: Charging / Discharging / Idle
@@ -19,7 +19,7 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 - Yield today (kWh)
 - Animated power flow diagram
 
-**Starter Battery — Starterbatterie (intAct Battery-Guard / BM6, optional)**
+**Starter Battery — (intAct Battery-Guard / BM6, optional)**
 - Voltage
 - State of Charge
 - Temperature
@@ -27,7 +27,7 @@ Real-time dashboard for a 12V LiFePO4 camper battery and Victron SmartSolar MPPT
 
 ---
 
-## Local development (no hardware)
+## Local development on MAC (no hardware)
 
 Requires **Node.js 20+**. Install it from [nodejs.org](https://nodejs.org) or via your package manager:
 
@@ -114,7 +114,7 @@ sudo bash /opt/camper-monitor/scripts/configure.sh
 ```
 
 It will ask for:
-- Battery driver (`ble` / `mock`) and BLE MAC address
+- Battery driver (`ble` / `mock`) and BLE MAC address; if `ble`: BMS protocol (`jbd` for standard JBD/Daly-OEM BMS or `eco` for Eco-Worthy AA-frame variant)
 - Solar driver (`vedirect` / `ble` / `mock`), serial port or BLE MAC + advertisement key
 - **Starter battery** (optional) — `y/N`; if yes: BLE MAC address (BM6 encryption key is static, no entry needed)
 - HTTP server port
@@ -721,7 +721,7 @@ sudo bash /opt/camper-monitor/scripts/configure.sh
 ```
 
 Abgefragt werden:
-- Batterie-Treiber (`ble` / `mock`) und BLE-MAC-Adresse
+- Batterie-Treiber (`ble` / `mock`) und BLE-MAC-Adresse; bei `ble`: BMS-Protokoll (`jbd` für Standard-JBD/Daly-OEM-BMS oder `eco` für Eco-Worthy AA-frame-Variante)
 - Solar-Treiber (`vedirect` / `ble` / `mock`), serieller Port oder BLE-MAC + Werbeschlüssel
 - **Starterbatterie** (optional) — `y/N`; bei Ja: BLE-MAC-Adresse (BM6-Verschlüsselungsschlüssel ist statisch, keine Eingabe nötig)
 - HTTP-Serverport
