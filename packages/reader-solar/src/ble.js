@@ -63,7 +63,7 @@ function parseSolarCharger(decrypted) {
     batteryCurrent: +battI.toFixed(2),
     batteryVoltage: +battV.toFixed(2),
     mode:           CS_MODES[cs] ?? 'Unknown',
-    mpptMode:       'unknown',
+    mpptMode:       null,   // not available in BLE advertisements (VE.Direct only)
     yieldToday:     +yieldToday.toFixed(2),
     ts:             Date.now(),
   }

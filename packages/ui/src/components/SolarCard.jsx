@@ -68,11 +68,17 @@ export function SolarCard({ solar, connected, pollInterval = 10_000 }) {
       {/* PV section */}
       <div className="flex flex-col gap-1 shrink-0">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">{t('pvInput')}</span>
-        <div className="grid grid-cols-3 gap-2">
-          <Stat label={t('voltage')} value={fmtV(solar?.pvVoltage)} color="#facc15" />
-          <Stat label={t('current')} value={fmtA(solar?.pvCurrent)} color="#facc15" />
-          <Stat label={t('power')}   value={fmtW(solar?.pvPower)}   color="#facc15" />
-        </div>
+        {(solar?.pvVoltage != null || solar?.pvCurrent != null) ? (
+          <div className="grid grid-cols-3 gap-2">
+            <Stat label={t('voltage')} value={fmtV(solar?.pvVoltage)} color="#facc15" />
+            <Stat label={t('current')} value={fmtA(solar?.pvCurrent)} color="#facc15" />
+            <Stat label={t('power')}   value={fmtW(solar?.pvPower)}   color="#facc15" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-2">
+            <Stat label={t('power')} value={fmtW(solar?.pvPower)} color="#facc15" />
+          </div>
+        )}
       </div>
 
       <div className="border-t border-slate-700/60" />
@@ -84,9 +90,11 @@ export function SolarCard({ solar, connected, pollInterval = 10_000 }) {
           <Stat label={t('current')}    value={fmtA(solar?.batteryCurrent)} color="#60a5fa" />
           <Stat label={t('voltage')}    value={fmtV(solar?.batteryVoltage)} color="#94a3b8" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className={`grid gap-2 ${solar?.mpptMode != null ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <Stat label={t('yieldToday')} value={solar ? `${solar.yieldToday} kWh` : '—'} color="#34d399" />
-          <Stat label={t('mppt')}       value={solar?.mpptMode ?? '—'} color="#94a3b8" />
+          {solar?.mpptMode != null && (
+            <Stat label={t('mppt')} value={solar.mpptMode} color="#94a3b8" />
+          )}
         </div>
       </div>
 
