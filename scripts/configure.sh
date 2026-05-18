@@ -31,14 +31,26 @@ else
 fi
 
 # ── battery ─────────────────────────────────────────────────────────────────
-header "Battery  (Eco-worthy JBD BMS)"
+header "Battery  (BMS via BLE)"
 
 ask "Driver — ble or mock (default: ble):"
 read -r BATTERY_DRIVER
 BATTERY_DRIVER="${BATTERY_DRIVER:-ble}"
 
 BATTERY_MAC=""
+BATTERY_PROTOCOL="jbd"
 if [[ "$BATTERY_DRIVER" == "ble" ]]; then
+    ask "BMS protocol:"
+    echo "    jbd  — standard JBD/Daly-OEM BMS (service ff00, DD-frame commands)"
+    echo "    eco  — Eco-Worthy AA-frame variant (service 0001, AA-frame commands)"
+    ask "Protocol (default: jbd):"
+    read -r BATTERY_PROTOCOL
+    BATTERY_PROTOCOL="${BATTERY_PROTOCOL:-jbd}"
+    if [[ "$BATTERY_PROTOCOL" != "jbd" && "$BATTERY_PROTOCOL" != "eco" ]]; then
+        warn "Unknown protocol '$BATTERY_PROTOCOL' — defaulting to jbd."
+        BATTERY_PROTOCOL="jbd"
+    fi
+
     ask "BLE MAC address  (e.g. AA:BB:CC:DD:EE:FF):"
     read -r BATTERY_MAC
     BATTERY_MAC="${BATTERY_MAC^^}"
@@ -157,6 +169,7 @@ cat > "$INSTALL_DIR/settings.yaml" << EOF
 readers:
   battery:
     driver: $BATTERY_DRIVER
+    protocol: $BATTERY_PROTOCOL
     macAddress: "$BATTERY_MAC"
     pollInterval: 5000
 

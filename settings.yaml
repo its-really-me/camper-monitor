@@ -1,7 +1,8 @@
 readers:
   battery:
     driver: ble                       # 'ble' | 'mock'  — override with BATTERY_DRIVER env var
-    macAddress: "AA:BB:CC:DD:EE:FF"   # BLE MAC of your Eco-worthy JBD BMS
+    protocol: eco                     # 'jbd' (DD-frame) | 'eco' (AA-frame, Eco-Worthy 897A etc.)
+    macAddress: "AA:BB:CC:DD:EE:FF"   # BLE MAC of your Eco-worthy BMS
     pollInterval: 5000                # ms
 
   solar:
