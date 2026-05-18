@@ -156,6 +156,7 @@ The SmartSolar 75/15 broadcasts live data over BLE using encrypted advertisement
 | Battery current | ✅ | ✅ |
 | Battery voltage | ✅ | ✅ |
 | Charge mode | ✅ | ✅ |
+| MPPT mode | ✅ | ❌ |
 | Yield today | ✅ | ✅ |
 
 > PV voltage is not included in the BLE advertisement payload. If you need it, use VE.Direct.
@@ -765,6 +766,7 @@ Der SmartSolar 75/15 sendet Live-Daten per BLE mit verschlüsselten Werbepaketen
 | Batteriestrom | ✅ | ✅ |
 | Batteriespannung | ✅ | ✅ |
 | Lademodus | ✅ | ✅ |
+| MPPT-Modus | ✅ | ❌ |
 | Ertrag heute | ✅ | ✅ |
 
 > PV-Spannung ist nicht im BLE-Werbepaket enthalten. VE.Direct verwenden, wenn diese benötigt wird.
