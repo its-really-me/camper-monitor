@@ -623,6 +623,13 @@ The BLE protocol work in this project stands on the shoulders of others who docu
 
 ---
 
+## License
+
+MIT © 2026 Kai Steuernagel — see [LICENSE](LICENSE).  
+Third-party dependency licenses: [LICENSES.md](LICENSES.md).
+
+---
+
 ---
 
 # Camper Monitor — Deutsche Übersetzung
