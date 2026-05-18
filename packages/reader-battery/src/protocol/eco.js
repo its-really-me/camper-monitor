@@ -63,12 +63,13 @@ function parseStatus(payload) {
 }
 
 function parseCells(payload) {
-  // 8 cell voltages as big-endian uint16 millivolts, starting at payload[1]
-  if (payload.length < 17) return null
+  // Cell voltages as little-endian uint16 millivolts, starting at payload[0]
+  // Unused slots (cells 5-8 on a 4S pack) are 0x0000 and filtered by the range check
+  if (payload.length < 8) return null
   const cells = []
-  for (let i = 1; i < 17; i += 2) {
-    const mv = payload.readUInt16BE(i)
-    if (mv > 500 && mv < 4500) cells.push(+(mv / 1000).toFixed(3))   // valid cell range
+  for (let i = 0; i + 1 < payload.length; i += 2) {
+    const mv = payload.readUInt16LE(i)
+    if (mv > 500 && mv < 4500) cells.push(+(mv / 1000).toFixed(3))
   }
   return cells.length > 0 ? cells : null
 }
