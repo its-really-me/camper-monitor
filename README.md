@@ -597,6 +597,18 @@ No changes to the server or UI are needed.
 
 ---
 
+## Acknowledgements
+
+The BLE protocol work in this project stands on the shoulders of others who documented or reverse-engineered these proprietary protocols:
+
+- **[Victron Energy](https://www.victronenergy.com)** — published the [Extra Manufacturer Data specification](https://communityarchive.victronenergy.com/storage/attachments/extra-manufacturer-data-2022-12-14.pdf) (2022-12-14) covering the Instant Readout BLE advertisement format for SmartSolar and other Victron devices. The AES-128-CTR encryption scheme, IV layout, and field offsets used in `reader-solar` are all taken directly from that document.
+
+- **[tarball.ca](https://tarball.ca/posts/reverse-engineering-the-bm6-ble-battery-monitor/)** — reverse-engineered the BM6 BLE battery monitor protocol, including the GATT service/characteristic layout, AES-128-CBC decryption with static key, and handshake sequence. The `reader-starter` implementation is based entirely on that work.
+
+- **[mike805/eco-worthy-battery-logger](https://github.com/mike805/eco-worthy-battery-logger/issues/3)** — documented the ECO AA-frame BMS protocol (0xAA/0x55 framing, command set, and LE uint16 cell voltage encoding) through issue discussion and experimentation. That thread was essential for getting cell voltages right in `reader-battery`.
+
+---
+
 ---
 
 # Camper Monitor — Deutsche Übersetzung
@@ -1016,3 +1028,15 @@ Jeder Reader ist ein Paket, das `createReader(config)` exportiert und `{ start()
 4. Treiber in `settings.yaml` setzen
 
 Keine Änderungen am Server oder der UI nötig.
+
+---
+
+## Danksagungen
+
+Die BLE-Protokollarbeit in diesem Projekt baut auf der Arbeit anderer auf, die proprietäre Protokolle dokumentiert oder dekodiert haben:
+
+- **[Victron Energy](https://www.victronenergy.com)** — hat die [Extra-Manufacturer-Data-Spezifikation](https://communityarchive.victronenergy.com/storage/attachments/extra-manufacturer-data-2022-12-14.pdf) (2022-12-14) veröffentlicht, die das BLE-Instant-Readout-Format für SmartSolar und andere Victron-Geräte beschreibt. Das AES-128-CTR-Verschlüsselungsschema, das IV-Layout und die Feld-Offsets in `reader-solar` stammen direkt aus diesem Dokument.
+
+- **[tarball.ca](https://tarball.ca/posts/reverse-engineering-the-bm6-ble-battery-monitor/)** — hat das BM6-BLE-Protokoll dekodiert (GATT-Dienst/-Charakteristik-Layout, AES-128-CBC-Entschlüsselung mit statischem Schlüssel, Handshake-Sequenz). Die Implementierung in `reader-starter` basiert vollständig auf dieser Arbeit.
+
+- **[mike805/eco-worthy-battery-logger](https://github.com/mike805/eco-worthy-battery-logger/issues/3)** — hat das ECO-AA-frame-BMS-Protokoll (0xAA/0x55-Framing, Befehlssatz, LE-uint16-Zellspannungskodierung) durch Issue-Diskussion und Experimente dokumentiert. Dieser Thread war entscheidend für die korrekte Implementierung der Zellspannungen in `reader-battery`.
