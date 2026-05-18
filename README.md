@@ -619,6 +619,8 @@ The BLE protocol work in this project stands on the shoulders of others who docu
 
 - **[mike805/eco-worthy-battery-logger](https://github.com/mike805/eco-worthy-battery-logger/issues/3)** — documented the ECO AA-frame BMS protocol (0xAA/0x55 framing, command set, and LE uint16 cell voltage encoding) through issue discussion and experimentation. That thread was essential for getting cell voltages right in `reader-battery`.
 
+
+
 ---
 
 ---
@@ -631,6 +633,8 @@ Echtzeit-Dashboard für ein 12-V-Batteriesystem im Wohnmobil, betrieben auf eine
 - **Bordbatterie (Aufbaubatterie):** 12-V-LiFePO4 via Bluetooth — ECO AA-frame-BMS (Eco-Worthy, bestätigt funktionsfähig) oder Standard-JBD/Daly-OEM-BMS (auswählbar, noch nicht auf Hardware verifiziert)
 - **Solarladeregler:** Victron SmartSolar MPPT — BLE Instant Readout (passiv, kein Kabel) oder VE.Direct-USB-Kabel (vollständige Daten inkl. PV-Spannung)
 - **Starterbatterie (optional):** intAct Battery-Guard / BM6 via Bluetooth
+
+![Dashboard](docs/screenshot-de.png)
 
 ## Was angezeigt wird
 
