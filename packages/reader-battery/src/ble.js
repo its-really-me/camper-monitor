@@ -24,15 +24,16 @@ function createBleReader(config) {
     default: throw new Error(`Unknown battery protocol: "${protocolName}". Valid: jbd, eco`)
   }
 
-  let noble        = null
-  let peripheral   = null
-  let writeChar    = null
-  let pollTimer    = null
-  let reconnTimer  = null
-  let watchdogTimer = null
-  let running      = false
-  let nobleReady   = false
-  let connecting   = false
+  let noble             = null
+  let peripheral        = null
+  let writeChar         = null
+  let pollTimer         = null
+  let reconnTimer       = null
+  let watchdogTimer     = null
+  let running           = false
+  let nobleReady        = false
+  let connecting        = false
+  let consecutiveHangs  = 0   // L2 hang backoff counter; reset on successful connect
 
   const diag = {
     nobleState:           'unknown',
@@ -121,9 +122,10 @@ function createBleReader(config) {
       diag.connectingAt     = null
       diag.connectL2At      = null
       diag.connectGattStage = null
+      if (!hadL2) consecutiveHangs++
       diag.lastConnectError = hadL2
         ? `connect timeout (60s) — GATT discovery hung at stage ${stage} after L2 link was up`
-        : 'connect timeout (60s) — p.connect() never called back (L2 hang)'
+        : `connect timeout (60s) — p.connect() never called back (L2 hang, #${consecutiveHangs})`
       p.disconnect()
       scheduleReconnect()
     }, 60000)
@@ -238,6 +240,7 @@ function createBleReader(config) {
       clearTimeout(connectTimer)
       writeChar = wc
       protocol.reset()
+      consecutiveHangs      = 0
       diag.connectedAt      = Date.now()
       diag.connectingAt     = null
       diag.connectGattStage = null
@@ -270,8 +273,11 @@ function createBleReader(config) {
     })
   }
 
+  // Back off on consecutive L2 hangs: 5 s, 30 s, 60 s, 120 s, 120 s, ...
+  const RECONNECT_DELAYS = [5_000, 30_000, 60_000, 120_000]
   function scheduleReconnect() {
     connecting = false
+    const delay = RECONNECT_DELAYS[Math.min(consecutiveHangs, RECONNECT_DELAYS.length - 1)]
     diag.reconnectScheduledAt = Date.now()
     reconnTimer = setTimeout(() => {
       if (!running) return
@@ -279,7 +285,7 @@ function createBleReader(config) {
       setTimeout(() => {
         if (running && !connecting && writeChar === null) noble.startScanning([], true)
       }, 500)
-    }, 5000)
+    }, delay)
   }
 
   // Safety net: if we're not connected and not getting readings, prod the scanner.
